@@ -1,12 +1,13 @@
 use crate::{
-    interfaces::dto::File,
+    interfaces::dto::{CreatingFile, File},
     services::file_service::{FileCursor, FileService},
 };
-use rocket::{get, http::Status, routes, serde::json::Json, Route, State};
+use rocket::{get, http::Status, post, routes, serde::json::Json, Route, State};
 use std::vec;
+use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list]
+    routes![list, get, create]
 }
 
 #[get("/?<query..>")]
@@ -32,6 +33,40 @@ async fn list(
 
     Ok(Json(files))
 }
+
+#[get("/<file_id>")]
+async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<File>, Status> {
+    let file = match file_service.get_file(file_id).await {
+        Ok(Some(file)) => file,
+        Ok(None) => {
+            return Err(Status::NotFound);
+        }
+        Err(err) => {
+            log::error!("failed to get file: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(file))
+}
+
+#[post("/", data = "<file>")]
+async fn create(
+    file_service: &State<FileService>,
+    file: Json<CreatingFile>,
+) -> Result<Json<File>, Status> {
+    let file = match file_service.create_file(file.into_inner()).await {
+        Ok(file) => file,
+        Err(err) => {
+            log::error!("failed to create file: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(file))
+}
+
+// #[post("/<file_id>")]
 
 mod forms {
     use crate::forms::date_time_utc::DateTimeUtcFormField;

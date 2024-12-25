@@ -17,6 +17,5 @@ pub struct CreatingFile {
     pub name: String,
     pub size: usize,
     pub mime_type: String,
-    pub uploaded_at: DateTime<Utc>,
-    pub tags: Vec<String>,
+    pub tags: Option<Vec<String>>,
 }
