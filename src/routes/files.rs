@@ -1,13 +1,13 @@
 use crate::{
-    interfaces::dto::{CreatingFile, File},
+    interfaces::dto::{CreatingFile, File, UpdatingFile},
     services::file_service::{FileCursor, FileService},
 };
-use rocket::{get, http::Status, post, routes, serde::json::Json, Route, State};
+use rocket::{get, http::Status, patch, post, routes, serde::json::Json, Route, State};
 use std::vec;
 use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list, get, create]
+    routes![list, get, create, update]
 }
 
 #[get("/?<query..>")]
@@ -63,10 +63,32 @@ async fn create(
         }
     };
 
+    // TODO: index the file
+
     Ok(Json(file))
 }
 
-// #[post("/<file_id>")]
+#[patch("/<file_id>", data = "<file>")]
+async fn update(
+    file_service: &State<FileService>,
+    file_id: Uuid,
+    file: Json<UpdatingFile>,
+) -> Result<Json<File>, Status> {
+    let file = match file_service.update_file(file_id, file.into_inner()).await {
+        Ok(Some(file)) => file,
+        Ok(None) => {
+            return Err(Status::NotFound);
+        }
+        Err(err) => {
+            log::error!("failed to update file: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    // TODO: re-index the file
+
+    Ok(Json(file))
+}
 
 mod forms {
     use crate::forms::date_time_utc::DateTimeUtcFormField;

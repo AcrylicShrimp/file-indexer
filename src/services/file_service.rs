@@ -3,7 +3,7 @@ use chrono::DateTime;
 use futures::future::try_join;
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::Utc;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -100,7 +100,7 @@ SELECT file_id, tag
 FROM file_tags
 WHERE file_id = ANY($1::uuid[])
         ",
-            &files.iter().map(|file| file.id).collect::<Vec<_>>()[..]
+            &files.iter().map(|file| file.id).collect::<Vec<_>>()
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -180,6 +180,83 @@ SELECT $1, UNNEST($2::text[])
             uploaded_at: created_file.uploaded_at.and_utc(),
             tags: file.tags.unwrap_or_default(),
         })
+    }
+
+    pub async fn update_file(
+        &self,
+        file_id: Uuid,
+        file: dto::UpdatingFile,
+    ) -> Result<Option<dto::File>, FileServiceError> {
+        let mut tx = self.db_pool.begin().await?;
+
+        let original_file = match self.get_file(file_id).await? {
+            Some(original_file) => original_file,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        let name = file.name.as_ref().unwrap_or(&original_file.name);
+        let size = file.size.unwrap_or(original_file.size);
+        let mime_type = file.mime_type.as_ref().unwrap_or(&original_file.mime_type);
+        sqlx::query!(
+            "
+UPDATE files
+SET name = $1, size = $2, mime_type = $3
+WHERE id = $4
+            ",
+            name,
+            size as i64,
+            mime_type,
+            file_id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        if let Some(tags) = &file.tags {
+            let from_set = BTreeSet::from_iter(original_file.tags.iter());
+            let to_set = BTreeSet::from_iter(tags.iter());
+
+            let to_add = Vec::from_iter(to_set.difference(&from_set).map(|tag| tag.to_string()));
+            let to_remove = Vec::from_iter(from_set.difference(&to_set).map(|tag| tag.to_string()));
+
+            if !to_remove.is_empty() {
+                sqlx::query!(
+                    "
+DELETE FROM file_tags
+WHERE file_id = $1 AND tag = ANY($2::text[])
+                    ",
+                    file_id,
+                    &to_remove
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+
+            if !to_add.is_empty() {
+                sqlx::query!(
+                    "
+INSERT INTO file_tags (file_id, tag)
+SELECT $1, UNNEST($2::text[])
+                    ",
+                    file_id,
+                    &to_add
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        tx.commit().await?;
+
+        Ok(Some(dto::File {
+            id: file_id,
+            name: file.name.unwrap_or(original_file.name),
+            size: file.size.unwrap_or(original_file.size),
+            mime_type: file.mime_type.unwrap_or(original_file.mime_type),
+            uploaded_at: original_file.uploaded_at,
+            tags: file.tags.unwrap_or_default(),
+        }))
     }
 }
 

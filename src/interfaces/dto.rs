@@ -19,3 +19,11 @@ pub struct CreatingFile {
     pub mime_type: String,
     pub tags: Option<Vec<String>>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdatingFile {
+    pub name: Option<String>,
+    pub size: Option<usize>,
+    pub mime_type: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
