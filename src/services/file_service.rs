@@ -2,7 +2,7 @@ use crate::interfaces::dto;
 use chrono::DateTime;
 use futures::future::try_join;
 use serde::{Deserialize, Serialize};
-use sqlx::types::chrono::Utc;
+use sqlx::{types::chrono::Utc, PgPool};
 use std::collections::{BTreeSet, HashMap};
 use thiserror::Error;
 use uuid::Uuid;
@@ -14,7 +14,7 @@ pub enum FileServiceError {
 }
 
 pub struct FileService {
-    db_pool: sqlx::PgPool,
+    db_pool: PgPool,
 }
 
 impl FileService {

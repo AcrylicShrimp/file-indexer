@@ -1,3 +1,4 @@
+mod admin_tasks;
 mod files;
 
 use rocket::{catch, catchers, http::Status, serde::json::Json, Build, Request, Rocket};
@@ -6,6 +7,7 @@ use serde::Serialize;
 pub fn register_root(rocket: Rocket<Build>) -> Rocket<Build> {
     rocket
         .register("/", catchers![default])
+        .mount("/admin_tasks", admin_tasks::routes())
         .mount("/files", files::routes())
 }
 

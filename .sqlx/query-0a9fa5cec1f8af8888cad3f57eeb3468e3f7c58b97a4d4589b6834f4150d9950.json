@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admin_tasks SET status = $1 WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "admin_task_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "failed"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0a9fa5cec1f8af8888cad3f57eeb3468e3f7c58b97a4d4589b6834f4150d9950"
+}

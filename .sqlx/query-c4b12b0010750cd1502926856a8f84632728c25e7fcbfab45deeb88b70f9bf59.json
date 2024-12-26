@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nDELETE FROM file_tags\nWHERE file_id = $1 AND tag = ANY($2::text[])\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4b12b0010750cd1502926856a8f84632728c25e7fcbfab45deeb88b70f9bf59"
+}

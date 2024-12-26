@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nUPDATE files\nSET name = $1, size = $2, mime_type = $3\nWHERE id = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f1c6900fbf2412cc7a70aa8600d44518ccfd2fabe186b15e9b5527a6bb5aa585"
+}
