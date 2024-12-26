@@ -71,7 +71,7 @@ async fn create_index(client: &Client) -> Result<Index, SearchEngineError> {
 
     index.set_searchable_attributes(&["name", "tags"]).await?;
     index
-        .set_filterable_attributes(&["name", "size", "mime_type", "tags", "uploaded_at"])
+        .set_filterable_attributes(&["size", "mime_type", "tags", "uploaded_at"])
         .await?;
 
     Ok(index)

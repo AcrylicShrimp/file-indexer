@@ -1,5 +1,5 @@
 use crate::{
-    interfaces::dto::{CreatingFile, File, UpdatingFile},
+    interfaces::dto::{CreatingFile, File, FileSearchQuery, UpdatingFile},
     services::{
         file_service::{FileCursor, FileService},
         index_service::IndexService,
@@ -10,7 +10,7 @@ use std::vec;
 use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list, get, create, update]
+    routes![list, get, create, update, search]
 }
 
 #[get("/?<query..>")]
@@ -97,6 +97,22 @@ async fn update(
     }
 
     Ok(Json(file))
+}
+
+#[post("/searches", data = "<query>")]
+async fn search(
+    index_service: &State<IndexService>,
+    query: Json<FileSearchQuery>,
+) -> Result<Json<Vec<File>>, Status> {
+    let files = match index_service.search_files(&query.into_inner()).await {
+        Ok(files) => files,
+        Err(err) => {
+            log::error!("failed to search files: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(files))
 }
 
 mod forms {
