@@ -7,7 +7,9 @@ mod routes;
 mod services;
 
 use rocket::launch;
-use services::{file_service::FileService, index_service::IndexService};
+use services::{
+    admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
+};
 
 #[launch]
 async fn rocket() -> _ {
@@ -18,10 +20,14 @@ async fn rocket() -> _ {
         .await
         .expect("failed to initialize search engine module");
 
-    let file_service = FileService::new(database.into_pool());
+    let admin_task_service = AdminTaskService::new(database.pool());
+    let file_service = FileService::new(database.pool());
     let index_service = IndexService::new(search_engine.into_client());
 
-    let rocket = rocket::build().manage(file_service).manage(index_service);
+    let rocket = rocket::build()
+        .manage(admin_task_service)
+        .manage(file_service)
+        .manage(index_service);
     let rocket = routes::register_root(rocket);
 
     #[allow(clippy::let_and_return)]

@@ -7,7 +7,7 @@ use serde::Serialize;
 pub fn register_root(rocket: Rocket<Build>) -> Rocket<Build> {
     rocket
         .register("/", catchers![default])
-        .mount("/admin_tasks", admin_tasks::routes())
+        .mount("/admin-tasks", admin_tasks::routes())
         .mount("/files", files::routes())
 }
 

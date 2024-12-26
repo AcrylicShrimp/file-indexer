@@ -35,7 +35,7 @@ impl Database {
         Ok(Self { pool })
     }
 
-    pub fn into_pool(self) -> PgPool {
-        self.pool
+    pub fn pool(&self) -> PgPool {
+        self.pool.clone()
     }
 }

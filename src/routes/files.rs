@@ -67,6 +67,8 @@ async fn create(
         }
     };
 
+    // TODO: record this request as an admin task
+
     if let Err(err) = index_service.index_file(&file).await {
         log::warn!("failed to index file `{}`: {err:#?}", file.id);
     }
@@ -91,6 +93,8 @@ async fn update(
             return Err(Status::InternalServerError);
         }
     };
+
+    // TODO: record this request as an admin task
 
     if let Err(err) = index_service.index_file(&file).await {
         log::warn!("failed to index file `{}`: {err:#?}", file.id);
