@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\nINSERT INTO admin_tasks (initiator, name, metadata, status)\nVALUES ($1, $2, $3, $4)\nRETURNING id, enqueued_at, updated_at\n",
+  "query": "\nINSERT INTO admin_tasks (initiator, name, metadata, status)\nVALUES ($1, $2, $3, $4)\nRETURNING id, status AS \"status:_\", enqueued_at, updated_at\n",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,28 @@
       },
       {
         "ordinal": 1,
+        "name": "status:_",
+        "type_info": {
+          "Custom": {
+            "name": "admin_task_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "in_progress",
+                "completed",
+                "failed"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "enqueued_at",
         "type_info": "Timestamp"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "updated_at",
         "type_info": "Timestamp"
       }
@@ -52,8 +69,9 @@
     "nullable": [
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "082e4a6118a8c1903b670bb137f63e94596d5f03359d0985894313b4a856eedd"
+  "hash": "66501da0c7720a4ec2979512d2697295c88fe758fe50879b43c63682126e4d49"
 }

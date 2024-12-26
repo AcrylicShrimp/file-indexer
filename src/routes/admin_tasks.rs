@@ -1,7 +1,7 @@
 use crate::{
     interfaces::dto::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
     services::{
-        admin_task_service::{self, AdminTaskCursor, AdminTaskService},
+        admin_task_service::{AdminTaskCursor, AdminTaskService},
         index_service::IndexService,
     },
 };
@@ -60,12 +60,15 @@ async fn re_index(
     admin_task_service: &State<AdminTaskService>,
     index_service: &State<IndexService>,
 ) -> Result<Json<AdminTask>, Status> {
-    let admin_task = match admin_task_service.enqueue_task(
-        AdminTaskInitiator::User,
-        "re-index",
-        &serde_json::Value::Null,
-        None,
-    ) {
+    let admin_task = match admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            "re-index".to_owned(),
+            serde_json::Value::Null,
+            None,
+        )
+        .await
+    {
         Ok(admin_task) => admin_task,
         Err(err) => {
             log::error!("failed to enqueue admin task: {err:#?}");
@@ -90,7 +93,7 @@ mod forms {
     pub struct ListQuery {
         #[field(name = uncased("limit"), default = 25, validate = range(2..=100))]
         pub limit: usize,
-        #[field(name = uncased("last-admin-task-id"), validate = is_last_admin_task_id_valid(&self.last_admin_task_id))]
+        #[field(name = uncased("last-admin-task-id"), validate = is_last_admin_task_id_valid(&self.last_admin_task_updated_at))]
         pub last_admin_task_id: Option<Uuid>,
         #[field(name = uncased("last-admin-task-updated-at"), validate = is_last_admin_task_updated_at_valid(&self.last_admin_task_id))]
         pub last_admin_task_updated_at: Option<DateTimeUtcFormField>,

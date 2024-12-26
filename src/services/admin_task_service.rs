@@ -92,22 +92,22 @@ LIMIT $1",
     pub async fn enqueue_task(
         &self,
         initiator: dto::AdminTaskInitiator,
-        name: &str,
-        metadata: &Value,
+        name: String,
+        metadata: Value,
         status: Option<dto::AdminTaskStatus>,
-    ) -> Result<(), AdminTaskServiceError> {
-        let admin_task_id = match status {
+    ) -> Result<dto::AdminTask, AdminTaskServiceError> {
+        let creating_admin_task = match status {
             Some(status) => {
                 sqlx::query_as!(
                     row_types::CreatingAdminTask,
                     "
 INSERT INTO admin_tasks (initiator, name, metadata, status)
 VALUES ($1, $2, $3, $4)
-RETURNING id, enqueued_at, updated_at
+RETURNING id, status AS \"status:_\", enqueued_at, updated_at
 ",
                     initiator as _,
-                    name,
-                    metadata,
+                    &name,
+                    &metadata,
                     status as _,
                 )
                 .fetch_one(&self.db_pool)
@@ -119,18 +119,26 @@ RETURNING id, enqueued_at, updated_at
                     "
 INSERT INTO admin_tasks (initiator, name, metadata)
 VALUES ($1, $2, $3)
-RETURNING id, enqueued_at, updated_at
+RETURNING id, status AS \"status:_\", enqueued_at, updated_at
 ",
                     initiator as _,
-                    name,
-                    metadata,
+                    &name,
+                    &metadata,
                 )
                 .fetch_one(&self.db_pool)
                 .await?
             }
         };
 
-        Ok(())
+        Ok(dto::AdminTask {
+            id: creating_admin_task.id,
+            initiator,
+            name: name.to_string(),
+            metadata,
+            status: creating_admin_task.status,
+            enqueued_at: creating_admin_task.enqueued_at.and_utc(),
+            updated_at: creating_admin_task.updated_at.and_utc(),
+        })
     }
 
     pub async fn update_task_status(
@@ -208,6 +216,7 @@ mod row_types {
 
     pub struct CreatingAdminTask {
         pub id: Uuid,
+        pub status: dto::AdminTaskStatus,
         pub enqueued_at: NaiveDateTime,
         pub updated_at: NaiveDateTime,
     }
