@@ -118,12 +118,8 @@ fn build_filter_element(filter: &FileSearchQueryFilter) -> String {
         FileSearchQueryFilter::Tag { value } => {
             format!("tags = '{}'", escape_str(value))
         }
-        FileSearchQueryFilter::TagIsEmpty => {
-            format!("tags IS EMPTY")
-        }
-        FileSearchQueryFilter::TagIsNotEmpty => {
-            format!("tags IS NOT EMPTY")
-        }
+        FileSearchQueryFilter::TagIsEmpty => "tags IS EMPTY".to_owned(),
+        FileSearchQueryFilter::TagIsNotEmpty => "tags IS NOT EMPTY".to_owned(),
         FileSearchQueryFilter::UploadedAt { operator, value } => {
             format!("uploaded_at {} {}", operator.to_str(), value.timestamp())
         }
