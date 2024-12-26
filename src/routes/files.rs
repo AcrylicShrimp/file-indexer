@@ -1,6 +1,9 @@
 use crate::{
     interfaces::dto::{CreatingFile, File, UpdatingFile},
-    services::file_service::{FileCursor, FileService},
+    services::{
+        file_service::{FileCursor, FileService},
+        index_service::IndexService,
+    },
 };
 use rocket::{get, http::Status, patch, post, routes, serde::json::Json, Route, State};
 use std::vec;
@@ -53,6 +56,7 @@ async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<Fi
 #[post("/", data = "<file>")]
 async fn create(
     file_service: &State<FileService>,
+    index_service: &State<IndexService>,
     file: Json<CreatingFile>,
 ) -> Result<Json<File>, Status> {
     let file = match file_service.create_file(file.into_inner()).await {
@@ -63,7 +67,9 @@ async fn create(
         }
     };
 
-    // TODO: index the file
+    if let Err(err) = index_service.index_file(&file).await {
+        log::warn!("failed to index file `{}`: {err:#?}", file.id);
+    }
 
     Ok(Json(file))
 }
@@ -71,6 +77,7 @@ async fn create(
 #[patch("/<file_id>", data = "<file>")]
 async fn update(
     file_service: &State<FileService>,
+    index_service: &State<IndexService>,
     file_id: Uuid,
     file: Json<UpdatingFile>,
 ) -> Result<Json<File>, Status> {
@@ -85,7 +92,9 @@ async fn update(
         }
     };
 
-    // TODO: re-index the file
+    if let Err(err) = index_service.index_file(&file).await {
+        log::warn!("failed to index file `{}`: {err:#?}", file.id);
+    }
 
     Ok(Json(file))
 }
