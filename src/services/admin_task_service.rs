@@ -95,7 +95,19 @@ LIMIT $1",
         name: String,
         metadata: Value,
         status: Option<dto::AdminTaskStatus>,
+        mark_previous_tasks_as_canceled: bool,
     ) -> Result<dto::AdminTask, AdminTaskServiceError> {
+        let mut tx = self.db_pool.begin().await?;
+
+        if mark_previous_tasks_as_canceled {
+            sqlx::query!(
+                "UPDATE admin_tasks SET status = 'canceled' WHERE name = $1 AND status != 'canceled'",
+                name
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
         let creating_admin_task = match status {
             Some(status) => {
                 sqlx::query_as!(
@@ -110,7 +122,7 @@ RETURNING id, status AS \"status:_\", enqueued_at, updated_at
                     &metadata,
                     status as _,
                 )
-                .fetch_one(&self.db_pool)
+                .fetch_one(&mut *tx)
                 .await?
             }
             None => {
@@ -125,10 +137,12 @@ RETURNING id, status AS \"status:_\", enqueued_at, updated_at
                     &name,
                     &metadata,
                 )
-                .fetch_one(&self.db_pool)
+                .fetch_one(&mut *tx)
                 .await?
             }
         };
+
+        tx.commit().await?;
 
         Ok(dto::AdminTask {
             id: creating_admin_task.id,
@@ -149,6 +163,22 @@ RETURNING id, status AS \"status:_\", enqueued_at, updated_at
         sqlx::query!(
             "UPDATE admin_tasks SET status = $1 WHERE id = $2",
             status as _,
+            task_id
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_task_metadata(
+        &self,
+        task_id: Uuid,
+        metadata: Value,
+    ) -> Result<(), AdminTaskServiceError> {
+        sqlx::query!(
+            "UPDATE admin_tasks SET metadata = $1 WHERE id = $2",
+            metadata,
             task_id
         )
         .execute(&self.db_pool)

@@ -13,6 +13,7 @@ CREATE TABLE admin_tasks (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX admin_tasks_idx_name_status ON admin_tasks (name ASC, status ASC);
 CREATE INDEX admin_tasks_idx_updated_at_id ON admin_tasks (updated_at DESC, id ASC);
 
 CREATE OR REPLACE FUNCTION update_admin_task_updated_at()

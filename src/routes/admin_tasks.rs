@@ -1,9 +1,6 @@
 use crate::{
     interfaces::dto::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
-    services::{
-        admin_task_service::{AdminTaskCursor, AdminTaskService},
-        index_service::IndexService,
-    },
+    services::admin_task_service::{AdminTaskCursor, AdminTaskService},
 };
 use rocket::{get, http::Status, post, routes, serde::json::Json, Route, State};
 use uuid::Uuid;
@@ -56,16 +53,17 @@ async fn get(
 }
 
 #[post("/re-index")]
-async fn re_index(
-    admin_task_service: &State<AdminTaskService>,
-    index_service: &State<IndexService>,
-) -> Result<Json<AdminTask>, Status> {
+async fn re_index(admin_task_service: &State<AdminTaskService>) -> Result<Json<AdminTask>, Status> {
     let admin_task = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
             "re-index".to_owned(),
-            serde_json::Value::Null,
+            serde_json::json!({
+                "last_file_id": serde_json::Value::Null,
+                "last_file_uploaded_at": serde_json::Value::Null,
+            }),
             None,
+            true,
         )
         .await;
 
@@ -76,8 +74,6 @@ async fn re_index(
             return Err(Status::InternalServerError);
         }
     };
-
-    // TODO: trigger the task
 
     Ok(Json(admin_task))
 }

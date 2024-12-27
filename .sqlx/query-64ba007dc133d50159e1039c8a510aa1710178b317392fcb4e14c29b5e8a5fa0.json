@@ -43,6 +43,7 @@
               "Enum": [
                 "pending",
                 "in_progress",
+                "canceled",
                 "completed",
                 "failed"
               ]

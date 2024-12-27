@@ -86,6 +86,7 @@ async fn create(
             "create-file".to_owned(),
             serde_json::json!({ "file_id": file.id, "content": body }),
             Some(status),
+            false,
         )
         .await;
 
@@ -130,6 +131,7 @@ async fn update(
             "update-file".to_owned(),
             serde_json::json!({ "file_id": file_id, "delta": body }),
             Some(status),
+            false,
         )
         .await;
 
