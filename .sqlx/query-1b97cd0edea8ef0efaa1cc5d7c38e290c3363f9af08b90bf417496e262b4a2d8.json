@@ -1,0 +1,81 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nSELECT\n    id,\n    initiator AS \"initiator:_\",\n    name,\n    metadata,\n    status AS \"status:_\",\n    enqueued_at,\n    updated_at\nFROM admin_tasks\nWHERE\n    name = $1\n    AND (\n        status = 'pending'\n        OR\n        status = 'in_progress'\n    )\nORDER BY enqueued_at ASC\nLIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "initiator:_",
+        "type_info": {
+          "Custom": {
+            "name": "admin_task_initiator",
+            "kind": {
+              "Enum": [
+                "user",
+                "system"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "metadata",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "status:_",
+        "type_info": {
+          "Custom": {
+            "name": "admin_task_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "in_progress",
+                "canceled",
+                "completed",
+                "failed"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "enqueued_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1b97cd0edea8ef0efaa1cc5d7c38e290c3363f9af08b90bf417496e262b4a2d8"
+}
