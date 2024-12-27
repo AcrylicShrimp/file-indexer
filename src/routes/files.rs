@@ -1,6 +1,9 @@
 use crate::{
-    interfaces::dto::{CreatingFile, File, FileSearchQuery, UpdatingFile},
+    interfaces::dto::{
+        AdminTaskInitiator, AdminTaskStatus, CreatingFile, File, FileSearchQuery, UpdatingFile,
+    },
     services::{
+        admin_task_service::AdminTaskService,
         file_service::{FileCursor, FileService},
         index_service::IndexService,
     },
@@ -53,13 +56,15 @@ async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<Fi
     Ok(Json(file))
 }
 
-#[post("/", data = "<file>")]
+#[post("/", data = "<body>")]
 async fn create(
+    admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
-    file: Json<CreatingFile>,
+    body: Json<CreatingFile>,
 ) -> Result<Json<File>, Status> {
-    let file = match file_service.create_file(file.into_inner()).await {
+    let body = body.into_inner();
+    let file = match file_service.create_file(body.clone()).await {
         Ok(file) => file,
         Err(err) => {
             log::error!("failed to create file: {err:#?}");
@@ -67,23 +72,40 @@ async fn create(
         }
     };
 
-    // TODO: record this request as an admin task
+    let status = match index_service.index_file(&file).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::warn!("failed to index file `{}`: {err:#?}", file.id);
+            AdminTaskStatus::Failed
+        }
+    };
 
-    if let Err(err) = index_service.index_file(&file).await {
-        log::warn!("failed to index file `{}`: {err:#?}", file.id);
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            "create-file".to_owned(),
+            serde_json::json!({ "file_id": file.id, "content": body }),
+            Some(status),
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
     }
 
     Ok(Json(file))
 }
 
-#[patch("/<file_id>", data = "<file>")]
+#[patch("/<file_id>", data = "<body>")]
 async fn update(
+    admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
     file_id: Uuid,
-    file: Json<UpdatingFile>,
+    body: Json<UpdatingFile>,
 ) -> Result<Json<File>, Status> {
-    let file = match file_service.update_file(file_id, file.into_inner()).await {
+    let body = body.into_inner();
+    let file = match file_service.update_file(file_id, body.clone()).await {
         Ok(Some(file)) => file,
         Ok(None) => {
             return Err(Status::NotFound);
@@ -94,10 +116,25 @@ async fn update(
         }
     };
 
-    // TODO: record this request as an admin task
+    let status = match index_service.index_file(&file).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::warn!("failed to index file `{}`: {err:#?}", file.id);
+            AdminTaskStatus::Failed
+        }
+    };
 
-    if let Err(err) = index_service.index_file(&file).await {
-        log::warn!("failed to index file `{}`: {err:#?}", file.id);
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            "update-file".to_owned(),
+            serde_json::json!({ "file_id": file_id, "delta": body }),
+            Some(status),
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
     }
 
     Ok(Json(file))

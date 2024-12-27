@@ -60,15 +60,16 @@ async fn re_index(
     admin_task_service: &State<AdminTaskService>,
     index_service: &State<IndexService>,
 ) -> Result<Json<AdminTask>, Status> {
-    let admin_task = match admin_task_service
+    let admin_task = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
             "re-index".to_owned(),
             serde_json::Value::Null,
             None,
         )
-        .await
-    {
+        .await;
+
+    let admin_task = match admin_task {
         Ok(admin_task) => admin_task,
         Err(err) => {
             log::error!("failed to enqueue admin task: {err:#?}");

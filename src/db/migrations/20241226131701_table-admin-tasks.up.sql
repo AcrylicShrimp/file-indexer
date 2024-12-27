@@ -1,7 +1,7 @@
 -- Add up migration script here
 
 CREATE TYPE admin_task_initiator AS ENUM ('user', 'system');
-CREATE TYPE admin_task_status AS ENUM ('pending', 'in_progress', 'completed', 'failed');
+CREATE TYPE admin_task_status AS ENUM ('pending', 'in_progress', 'canceled', 'completed', 'failed');
 
 CREATE TABLE admin_tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -42,6 +42,7 @@ pub enum AdminTaskInitiator {
 pub enum AdminTaskStatus {
     Pending,
     InProgress,
+    Canceled,
     Completed,
     Failed,
 }
