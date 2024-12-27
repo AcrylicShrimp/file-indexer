@@ -45,6 +45,39 @@ WHERE id = $1",
         Ok(task.map(|task| task.into()))
     }
 
+    pub async fn get_last_active_task(
+        &self,
+        name: String,
+    ) -> Result<Option<dto::AdminTask>, AdminTaskServiceError> {
+        let task = sqlx::query_as!(
+            row_types::AdminTask,
+            "
+SELECT
+    id,
+    initiator AS \"initiator:_\",
+    name,
+    metadata,
+    status AS \"status:_\",
+    enqueued_at,
+    updated_at
+FROM admin_tasks
+WHERE
+    name = $1
+    AND (
+        status = 'pending'
+        OR
+        status = 'in_progress'
+    )
+ORDER BY enqueued_at ASC
+LIMIT 1",
+            name
+        )
+        .fetch_optional(&self.db_pool)
+        .await?;
+
+        Ok(task.map(|task| task.into()))
+    }
+
     pub async fn list_tasks(
         &self,
         limit: usize,
