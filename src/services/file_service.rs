@@ -13,6 +13,7 @@ pub enum FileServiceError {
     DbError(#[from] sqlx::Error),
 }
 
+#[derive(Clone)]
 pub struct FileService {
     db_pool: PgPool,
 }

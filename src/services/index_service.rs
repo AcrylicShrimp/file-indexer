@@ -17,6 +17,7 @@ pub enum IndexServiceError {
     MeilisearchError(#[from] meilisearch_sdk::errors::Error),
 }
 
+#[derive(Clone)]
 pub struct IndexService {
     client: Client,
 }
@@ -50,6 +51,37 @@ impl IndexService {
                 }],
                 FILES_PRIMARY_KEY,
             )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn index_files(&self, files: &[File]) -> Result<(), IndexServiceError> {
+        #[derive(Serialize)]
+        struct IndexingFile<'a> {
+            id: Uuid,
+            name: &'a str,
+            size: usize,
+            mime_type: &'a str,
+            tags: &'a [String],
+            uploaded_at: i64,
+        }
+
+        let indexing_files = files
+            .iter()
+            .map(|file| IndexingFile {
+                id: file.id,
+                name: &file.name,
+                size: file.size,
+                mime_type: &file.mime_type,
+                tags: &file.tags,
+                uploaded_at: file.uploaded_at.timestamp(),
+            })
+            .collect::<Vec<_>>();
+
+        self.client
+            .index(FILES_INDEX_UID)
+            .add_or_update(&indexing_files, FILES_PRIMARY_KEY)
             .await?;
 
         Ok(())

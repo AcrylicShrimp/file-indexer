@@ -3,7 +3,7 @@ use crate::{
         AdminTaskInitiator, AdminTaskStatus, CreatingFile, File, FileSearchQuery, UpdatingFile,
     },
     services::{
-        admin_task_service::AdminTaskService,
+        admin_task_service::{AdminTaskService, CREATE_FILE_TASK_NAME, UPDATE_FILE_TASK_NAME},
         file_service::{FileCursor, FileService},
         index_service::IndexService,
     },
@@ -83,7 +83,7 @@ async fn create(
     let result = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
-            "create-file".to_owned(),
+            CREATE_FILE_TASK_NAME.to_owned(),
             serde_json::json!({ "file_id": file.id, "content": body }),
             Some(status),
             false,
@@ -128,7 +128,7 @@ async fn update(
     let result = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
-            "update-file".to_owned(),
+            UPDATE_FILE_TASK_NAME.to_owned(),
             serde_json::json!({ "file_id": file_id, "delta": body }),
             Some(status),
             false,

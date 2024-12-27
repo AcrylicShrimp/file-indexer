@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
 mod db;
+mod fairings;
 mod forms;
 mod interfaces;
 mod routes;
 mod services;
 
+use fairings::re_indexer::ReIndexer;
 use rocket::launch;
 use services::{
     admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
@@ -24,7 +26,14 @@ async fn rocket() -> _ {
     let file_service = FileService::new(database.pool());
     let index_service = IndexService::new(search_engine.into_client());
 
+    let re_indexer = ReIndexer::new(
+        admin_task_service.clone(),
+        file_service.clone(),
+        index_service.clone(),
+    );
+
     let rocket = rocket::build()
+        .attach(re_indexer)
         .manage(admin_task_service)
         .manage(file_service)
         .manage(index_service);

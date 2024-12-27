@@ -5,12 +5,17 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+pub const RE_INDEX_TASK_NAME: &str = "re-index";
+pub const CREATE_FILE_TASK_NAME: &str = "create-file";
+pub const UPDATE_FILE_TASK_NAME: &str = "update-file";
+
 #[derive(Error, Debug)]
 pub enum AdminTaskServiceError {
     #[error("database error: {0:#?}")]
     DbError(#[from] sqlx::Error),
 }
 
+#[derive(Clone)]
 pub struct AdminTaskService {
     db_pool: PgPool,
 }
@@ -47,7 +52,7 @@ WHERE id = $1",
 
     pub async fn get_last_active_task(
         &self,
-        name: String,
+        name: &str,
     ) -> Result<Option<dto::AdminTask>, AdminTaskServiceError> {
         let task = sqlx::query_as!(
             row_types::AdminTask,
