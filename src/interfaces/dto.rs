@@ -107,8 +107,14 @@ pub struct UpdatingFile {
 #[serde(rename_all = "camelCase")]
 pub struct FileSearchQuery {
     pub q: String,
+    #[serde(default = "file_search_query_default_limit")]
     pub limit: usize,
+    #[serde(default)]
     pub filters: Vec<Vec<FileSearchQueryFilter>>,
+}
+
+fn file_search_query_default_limit() -> usize {
+    25
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

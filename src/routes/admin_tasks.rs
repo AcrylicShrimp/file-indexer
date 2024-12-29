@@ -1,16 +1,19 @@
 use crate::{
     interfaces::dto::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
-    services::admin_task_service::{AdminTaskCursor, AdminTaskService},
+    services::{
+        admin_task_service::{AdminTaskCursor, AdminTaskService},
+        index_service::IndexService,
+    },
 };
 use rocket::{get, http::Status, post, routes, serde::json::Json, Route, State};
 use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list, get, re_index]
+    routes![admin_tasks_list, admin_tasks_get, admin_tasks_re_index,]
 }
 
 #[get("/?<query..>")]
-async fn list(
+async fn admin_tasks_list(
     admin_task_service: &State<AdminTaskService>,
     query: forms::ListQuery,
 ) -> Result<Json<Vec<AdminTaskPreview>>, Status> {
@@ -34,7 +37,7 @@ async fn list(
 }
 
 #[get("/<task_id>")]
-async fn get(
+async fn admin_tasks_get(
     admin_task_service: &State<AdminTaskService>,
     task_id: Uuid,
 ) -> Result<Json<AdminTask>, Status> {
@@ -53,7 +56,15 @@ async fn get(
 }
 
 #[post("/re-index")]
-async fn re_index(admin_task_service: &State<AdminTaskService>) -> Result<Json<AdminTask>, Status> {
+async fn admin_tasks_re_index(
+    admin_task_service: &State<AdminTaskService>,
+    index_service: &State<IndexService>,
+) -> Result<Json<AdminTask>, Status> {
+    if let Err(err) = index_service.empty_index().await {
+        log::error!("failed to empty index: {err:#?}");
+        return Err(Status::InternalServerError);
+    }
+
     let admin_task = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,

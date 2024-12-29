@@ -1,7 +1,7 @@
 use crate::{
     interfaces::dto::{
         AdminTaskInitiator, AdminTaskStatus, CreatedFile, CreatingFile, File, FileDownloadUrl,
-        FileSearchQuery, FileUploadUrl, UpdatingFile,
+        FileUploadUrl, UpdatingFile,
     },
     services::{
         admin_task_service::{AdminTaskService, CREATE_FILE_TASK_NAME, UPDATE_FILE_TASK_NAME},
@@ -16,18 +16,17 @@ use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
     routes![
-        list,
-        get,
-        create_download_url,
-        create,
-        create_upload_url,
-        update,
-        search
+        files_list,
+        files_get,
+        files_create_download_url,
+        files_create,
+        files_create_upload_url,
+        files_update,
     ]
 }
 
 #[get("/?<query..>")]
-async fn list(
+async fn files_list(
     file_service: &State<FileService>,
     query: forms::ListQuery,
 ) -> Result<Json<Vec<File>>, Status> {
@@ -51,7 +50,7 @@ async fn list(
 }
 
 #[get("/<file_id>")]
-async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<File>, Status> {
+async fn files_get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<File>, Status> {
     let file = match file_service.get_file(file_id).await {
         Ok(Some(file)) => file,
         Ok(None) => {
@@ -67,7 +66,7 @@ async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<Fi
 }
 
 #[post("/<file_id>/download-urls")]
-async fn create_download_url(
+async fn files_create_download_url(
     s3_service: &State<S3Service>,
     file_id: Uuid,
 ) -> Result<Json<FileDownloadUrl>, Status> {
@@ -89,7 +88,7 @@ async fn create_download_url(
 }
 
 #[post("/", data = "<body>")]
-async fn create(
+async fn files_create(
     admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
@@ -151,7 +150,7 @@ async fn create(
 }
 
 #[post("/<file_id>/upload-urls")]
-async fn create_upload_url(
+async fn files_create_upload_url(
     file_service: &State<FileService>,
     s3_service: &State<S3Service>,
     file_id: Uuid,
@@ -182,7 +181,7 @@ async fn create_upload_url(
 }
 
 #[patch("/<file_id>", data = "<body>")]
-async fn update(
+async fn files_update(
     admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
@@ -224,22 +223,6 @@ async fn update(
     }
 
     Ok(Json(file))
-}
-
-#[post("/searches", data = "<query>")]
-async fn search(
-    index_service: &State<IndexService>,
-    query: Json<FileSearchQuery>,
-) -> Result<Json<Vec<File>>, Status> {
-    let files = match index_service.search_files(&query.into_inner()).await {
-        Ok(files) => files,
-        Err(err) => {
-            log::error!("failed to search files: {err:#?}");
-            return Err(Status::InternalServerError);
-        }
-    };
-
-    Ok(Json(files))
 }
 
 mod forms {

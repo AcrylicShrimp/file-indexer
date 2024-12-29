@@ -27,6 +27,15 @@ impl IndexService {
         Self { client }
     }
 
+    pub async fn empty_index(&self) -> Result<(), IndexServiceError> {
+        self.client
+            .index(FILES_INDEX_UID)
+            .delete_all_documents()
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn index_file(&self, file: &File) -> Result<(), IndexServiceError> {
         #[derive(Serialize)]
         struct IndexingFile<'a> {
