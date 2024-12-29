@@ -1,0 +1,44 @@
+services:
+  app:
+    image: ghcr.io/acrylicshrimp/file-indexer:0.2.0
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/file_indexer
+      - MEILISEARCH_URL=http://search:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY}
+    depends_on:
+      - db
+      - search
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=file_indexer
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  search:
+    image: getmeili/meilisearch:v1.12.0
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_ENV=production
+      - MEILI_DB_PATH=/meili_data/db
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY}
+    volumes:
+      - search_data:/meili_data
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  search_data:
