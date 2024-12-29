@@ -99,7 +99,7 @@ mod forms {
 
     #[derive(FromForm, Debug)]
     pub struct ListQuery {
-        #[field(name = uncased("limit"), default = 25, validate = range(2..=100))]
+        #[field(name = uncased("limit"), default = 25, validate = range(1..=100))]
         pub limit: usize,
         #[field(name = uncased("last-admin-task-id"), validate = is_last_admin_task_id_valid(&self.last_admin_task_updated_at))]
         pub last_admin_task_id: Option<Uuid>,
