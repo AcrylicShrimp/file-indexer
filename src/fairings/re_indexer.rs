@@ -102,38 +102,61 @@ async fn re_index_task(
     file_service: FileService,
     index_service: IndexService,
 ) {
-    let mut timer = tokio::time::interval(Duration::from_secs(10));
+    let mut duration_secs = 10;
 
     loop {
+        let mut timer = tokio::time::interval(Duration::from_secs(duration_secs));
+
         tokio::select! {
             _ = stop_signal.recv() => {
                 return;
             }
             _ = timer.tick() => {
-                if let Err(err) = re_index_task_on_tick(
+                let result = re_index_task_on_tick(
                     &admin_task_service,
                     &file_service,
                     &index_service,
-                ).await {
-                    log::error!("re-index task on tick error: {err:#?}");
+                ).await;
+
+                match result {
+                    Ok(ReIndexTaskResult::NoTask) => {
+                        duration_secs = 10;
+                    }
+                    Ok(ReIndexTaskResult::TaskNotCompleted) => {
+                        duration_secs = 1;
+                    }
+                    Ok(ReIndexTaskResult::TaskCompleted) => {
+                        duration_secs = 10;
+                    }
+                    Err(err) => {
+                        duration_secs = 10;
+                        log::error!("re-index task on tick error: {err:#?}");
+                    }
                 }
             }
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ReIndexTaskResult {
+    NoTask,
+    TaskNotCompleted,
+    TaskCompleted,
+}
+
 async fn re_index_task_on_tick(
     admin_task_service: &AdminTaskService,
     file_service: &FileService,
     index_service: &IndexService,
-) -> Result<(), ReIndexerError> {
+) -> Result<ReIndexTaskResult, ReIndexerError> {
     let admin_task = admin_task_service
         .get_last_active_task(RE_INDEX_TASK_NAME)
         .await?;
     let admin_task = match admin_task {
         Some(admin_task) => admin_task,
         None => {
-            return Ok(());
+            return Ok(ReIndexTaskResult::NoTask);
         }
     };
     let admin_task_id = admin_task.id;
@@ -145,19 +168,23 @@ async fn re_index_task_on_tick(
     let result =
         re_index_task_on_tick_for_task(admin_task, admin_task_service, file_service, index_service)
             .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(err) => {
+            admin_task_service
+                .update_task_status(admin_task_id, AdminTaskStatus::Failed)
+                .await?;
+            return Err(err);
+        }
+    };
 
-    if let Err(err) = result {
+    if result == ReIndexTaskResult::TaskCompleted {
         admin_task_service
-            .update_task_status(admin_task_id, AdminTaskStatus::Failed)
+            .update_task_status(admin_task_id, AdminTaskStatus::Completed)
             .await?;
-        return Err(err);
     }
 
-    admin_task_service
-        .update_task_status(admin_task_id, AdminTaskStatus::Completed)
-        .await?;
-
-    Ok(())
+    Ok(result)
 }
 
 async fn re_index_task_on_tick_for_task(
@@ -165,7 +192,7 @@ async fn re_index_task_on_tick_for_task(
     admin_task_service: &AdminTaskService,
     file_service: &FileService,
     index_service: &IndexService,
-) -> Result<(), ReIndexerError> {
+) -> Result<ReIndexTaskResult, ReIndexerError> {
     #[derive(Serialize, Deserialize)]
     struct ReIndexTaskMetadata {
         last_file_id: Option<Uuid>,
@@ -185,7 +212,8 @@ async fn re_index_task_on_tick_for_task(
     let last_file = match files.last() {
         Some(file) => file,
         None => {
-            return Ok(());
+            // no more files to index; task is completed
+            return Ok(ReIndexTaskResult::TaskCompleted);
         }
     };
 
@@ -201,5 +229,5 @@ async fn re_index_task_on_tick_for_task(
         .update_task_metadata(admin_task.id, metadata)
         .await?;
 
-    Ok(())
+    Ok(ReIndexTaskResult::TaskNotCompleted)
 }
