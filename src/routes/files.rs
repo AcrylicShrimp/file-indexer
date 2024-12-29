@@ -1,11 +1,13 @@
 use crate::{
     interfaces::dto::{
-        AdminTaskInitiator, AdminTaskStatus, CreatingFile, File, FileSearchQuery, UpdatingFile,
+        AdminTaskInitiator, AdminTaskStatus, CreatedFile, CreatingFile, File, FileDownloadUrl,
+        FileSearchQuery, UpdatingFile,
     },
     services::{
         admin_task_service::{AdminTaskService, CREATE_FILE_TASK_NAME, UPDATE_FILE_TASK_NAME},
         file_service::{FileCursor, FileService},
         index_service::IndexService,
+        s3_service::S3Service,
     },
 };
 use rocket::{get, http::Status, patch, post, routes, serde::json::Json, Route, State};
@@ -13,7 +15,7 @@ use std::vec;
 use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list, get, create, update, search]
+    routes![list, get, create_download_url, create, update, search]
 }
 
 #[get("/?<query..>")]
@@ -56,18 +58,52 @@ async fn get(file_service: &State<FileService>, file_id: Uuid) -> Result<Json<Fi
     Ok(Json(file))
 }
 
+#[post("/<file_id>/download-urls")]
+async fn create_download_url(
+    s3_service: &State<S3Service>,
+    file_id: Uuid,
+) -> Result<Json<FileDownloadUrl>, Status> {
+    let result = s3_service
+        .generate_presigned_url_for_download(file_id)
+        .await;
+    let (url, expires_at) = match result {
+        Ok(Some((url, expires_at))) => (url, expires_at),
+        Ok(None) => {
+            return Err(Status::NotFound);
+        }
+        Err(err) => {
+            log::error!("failed to generate presigned url for download: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(FileDownloadUrl { url, expires_at }))
+}
+
 #[post("/", data = "<body>")]
 async fn create(
     admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
+    s3_service: &State<S3Service>,
     body: Json<CreatingFile>,
-) -> Result<Json<File>, Status> {
+) -> Result<Json<CreatedFile>, Status> {
     let body = body.into_inner();
     let file = match file_service.create_file(body.clone()).await {
         Ok(file) => file,
         Err(err) => {
             log::error!("failed to create file: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    let (upload_url, upload_url_expires_at) = match s3_service
+        .generate_presigned_url_for_upload(file.id, &file.mime_type)
+        .await
+    {
+        Ok(url) => url,
+        Err(err) => {
+            log::error!("failed to generate presigned url for upload: {err:#?}");
             return Err(Status::InternalServerError);
         }
     };
@@ -94,7 +130,16 @@ async fn create(
         log::warn!("failed to enqueue admin task: {err:#?}");
     }
 
-    Ok(Json(file))
+    Ok(Json(CreatedFile {
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        mime_type: file.mime_type,
+        uploaded_at: file.uploaded_at,
+        tags: file.tags,
+        upload_url,
+        upload_url_expires_at,
+    }))
 }
 
 #[patch("/<file_id>", data = "<body>")]

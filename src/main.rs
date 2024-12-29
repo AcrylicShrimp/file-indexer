@@ -11,6 +11,7 @@ use fairings::re_indexer::ReIndexer;
 use rocket::launch;
 use services::{
     admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
+    s3_service::S3Service,
 };
 
 #[launch]
@@ -21,6 +22,10 @@ async fn rocket() -> _ {
     let search_engine = db::search_engine::SearchEngine::init()
         .await
         .expect("failed to initialize search engine module");
+
+    let s3_service = S3Service::init()
+        .await
+        .expect("failed to initialize s3 service");
 
     let admin_task_service = AdminTaskService::new(database.pool());
     let file_service = FileService::new(database.pool());
@@ -36,7 +41,8 @@ async fn rocket() -> _ {
         .attach(re_indexer)
         .manage(admin_task_service)
         .manage(file_service)
-        .manage(index_service);
+        .manage(index_service)
+        .manage(s3_service);
     let rocket = routes::register_root(rocket);
 
     #[allow(clippy::let_and_return)]

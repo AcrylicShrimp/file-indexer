@@ -60,11 +60,31 @@ pub struct File {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct FileDownloadUrl {
+    pub url: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CreatingFile {
     pub name: String,
     pub size: usize,
     pub mime_type: String,
     pub tags: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedFile {
+    pub id: Uuid,
+    pub name: String,
+    pub size: usize,
+    pub mime_type: String,
+    pub uploaded_at: DateTime<Utc>,
+    pub tags: Vec<String>,
+    pub upload_url: String,
+    pub upload_url_expires_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
