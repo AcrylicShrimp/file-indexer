@@ -8,13 +8,13 @@ mod routes;
 mod services;
 
 use fairings::re_indexer::ReIndexer;
-use rocket::launch;
 use services::{
     admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
     s3_service::S3Service,
 };
+use std::net::{IpAddr, Ipv4Addr};
 
-#[launch]
+#[rocket::launch]
 async fn rocket() -> _ {
     let database = db::database::Database::init()
         .await
@@ -37,7 +37,12 @@ async fn rocket() -> _ {
         index_service.clone(),
     );
 
-    let rocket = rocket::build()
+    let config = rocket::Config {
+        address: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+        port: 8000,
+        ..rocket::Config::default()
+    };
+    let rocket = rocket::custom(&config)
         .attach(re_indexer)
         .manage(admin_task_service)
         .manage(file_service)
