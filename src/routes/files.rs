@@ -1,7 +1,7 @@
 use crate::{
     interfaces::dto::{
         AdminTaskInitiator, AdminTaskStatus, CreatedFile, CreatingFile, File, FileDownloadUrl,
-        FileSearchQuery, UpdatingFile,
+        FileSearchQuery, FileUploadUrl, UpdatingFile,
     },
     services::{
         admin_task_service::{AdminTaskService, CREATE_FILE_TASK_NAME, UPDATE_FILE_TASK_NAME},
@@ -15,7 +15,15 @@ use std::vec;
 use uuid::Uuid;
 
 pub fn routes() -> Vec<Route> {
-    routes![list, get, create_download_url, create, update, search]
+    routes![
+        list,
+        get,
+        create_download_url,
+        create,
+        create_upload_url,
+        update,
+        search
+    ]
 }
 
 #[get("/?<query..>")]
@@ -140,6 +148,37 @@ async fn create(
         upload_url,
         upload_url_expires_at,
     }))
+}
+
+#[post("/<file_id>/upload-urls")]
+async fn create_upload_url(
+    file_service: &State<FileService>,
+    s3_service: &State<S3Service>,
+    file_id: Uuid,
+) -> Result<Json<FileUploadUrl>, Status> {
+    let mime_type = match file_service.get_file_mime_type(file_id).await {
+        Ok(Some(mime_type)) => mime_type,
+        Ok(None) => {
+            return Err(Status::NotFound);
+        }
+        Err(err) => {
+            log::error!("failed to get file mime type: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    let result = s3_service
+        .generate_presigned_url_for_upload(file_id, &mime_type)
+        .await;
+    let (url, expires_at) = match result {
+        Ok((url, expires_at)) => (url, expires_at),
+        Err(err) => {
+            log::error!("failed to generate presigned url for upload: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(FileUploadUrl { url, expires_at }))
 }
 
 #[patch("/<file_id>", data = "<body>")]

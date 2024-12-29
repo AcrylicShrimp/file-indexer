@@ -89,6 +89,13 @@ pub struct CreatedFile {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct FileUploadUrl {
+    pub url: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdatingFile {
     pub name: Option<String>,
     pub size: Option<usize>,

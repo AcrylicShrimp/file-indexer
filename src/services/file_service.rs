@@ -49,6 +49,24 @@ WHERE file_id = $1
         Ok(file.map(|file| dto::File::from((file, file_tags))))
     }
 
+    pub async fn get_file_mime_type(
+        &self,
+        file_id: Uuid,
+    ) -> Result<Option<String>, FileServiceError> {
+        let mime_type = sqlx::query_scalar!(
+            "
+SELECT mime_type
+FROM files
+WHERE id = $1
+            ",
+            file_id
+        )
+        .fetch_optional(&self.db_pool)
+        .await?;
+
+        Ok(mime_type)
+    }
+
     pub async fn list_files(
         &self,
         limit: usize,
