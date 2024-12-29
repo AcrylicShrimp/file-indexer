@@ -2,3 +2,5 @@
 /scripts
 /target
 .env*
+.gitignore
+README.md
