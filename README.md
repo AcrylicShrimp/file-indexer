@@ -19,6 +19,7 @@ A service that manages files by tags.
 - `AWS_S3_BUCKET_NAME`: The AWS S3 bucket name to use.
 - `DATABASE_URL`: The URL of the database to use.
 - `MEILISEARCH_URL`: The URL of the Meilisearch instance to use.
+- `MEILISEARCH_API_KEY`: The API key of the Meilisearch instance to use.
 
 ### Endpoints
 
