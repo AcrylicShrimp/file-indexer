@@ -13,6 +13,8 @@ LABEL org.opencontainers.image.source=https://github.com/AcrylicShrimp/file-inde
 LABEL org.opencontainers.image.description="file-indexer v0.2.0"
 LABEL org.opencontainers.image.licenses=MIT
 
+RUN apt-get update && apt-get install -y ca-certificates
+
 COPY --from=builder /app/target/release/file-indexer .
 
 EXPOSE 8000
