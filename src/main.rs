@@ -7,7 +7,7 @@ mod interfaces;
 mod routes;
 mod services;
 
-use fairings::re_indexer::ReIndexer;
+use fairings::{cors::Cors, re_indexer::ReIndexer};
 use services::{
     admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
     s3_service::S3Service,
@@ -43,6 +43,7 @@ async fn rocket() -> _ {
         ..rocket::Config::default()
     };
     let rocket = rocket::custom(&config)
+        .attach(Cors)
         .attach(re_indexer)
         .manage(admin_task_service)
         .manage(file_service)

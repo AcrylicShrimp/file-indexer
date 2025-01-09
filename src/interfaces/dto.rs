@@ -5,6 +5,23 @@ use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct Admin {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub joined_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatingAdmin {
+    pub username: String,
+    pub password: String,
+    pub email: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AdminTaskPreview {
     pub id: Uuid,
     pub initiator: AdminTaskInitiator,

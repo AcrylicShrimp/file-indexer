@@ -2,16 +2,22 @@ mod admin_tasks;
 mod files;
 mod searches;
 
-use rocket::{catch, catchers, http::Status, serde::json::Json, Build, Request, Rocket};
+use rocket::{
+    catch, catchers, http::Status, options, routes, serde::json::Json, Build, Request, Rocket,
+};
 use serde::Serialize;
 
 pub fn register_root(rocket: Rocket<Build>) -> Rocket<Build> {
     rocket
         .register("/", catchers![default])
+        .mount("/", routes![all_options])
         .mount("/admin-tasks", admin_tasks::routes())
         .mount("/files", files::routes())
         .mount("/searches", searches::routes())
 }
+
+#[options("/<_..>")]
+fn all_options() {}
 
 #[derive(Serialize)]
 struct ErrorBody<'a> {

@@ -72,7 +72,7 @@ impl Fairing for ReIndexer {
     fn info(&self) -> Info {
         Info {
             name: "re-indexer",
-            kind: Kind::Liftoff,
+            kind: Kind::Liftoff | Kind::Shutdown,
         }
     }
 
