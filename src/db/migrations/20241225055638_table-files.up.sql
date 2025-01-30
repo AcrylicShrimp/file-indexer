@@ -5,7 +5,9 @@ CREATE TABLE files (
     name TEXT NOT NULL,
     size BIGINT NOT NULL,
     mime_type TEXT NOT NULL,
-    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_ready BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-CREATE INDEX files_idx_uploaded_at_id ON files (uploaded_at DESC, id ASC);
+CREATE INDEX files_idx_is_ready ON files (is_ready);
+CREATE INDEX files_idx_is_ready_uploaded_at_id ON files (is_ready, uploaded_at DESC, id ASC);

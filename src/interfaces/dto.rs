@@ -5,6 +5,12 @@ use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct SimpleOk {
+    pub ok: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Admin {
     pub id: Uuid,
     pub username: String,
@@ -100,15 +106,27 @@ pub struct CreatedFile {
     pub mime_type: String,
     pub uploaded_at: DateTime<Utc>,
     pub tags: Vec<String>,
-    pub upload_url: String,
-    pub upload_url_expires_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FileUploadUrl {
-    pub url: String,
+    pub id: String,
+    pub urls: Vec<String>,
     pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadedParts {
+    pub parts: Vec<UploadedPart>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadedPart {
+    pub part_number: u32,
+    pub e_tag: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -117,7 +135,8 @@ pub struct UpdatingFile {
     pub name: Option<String>,
     pub size: Option<usize>,
     pub mime_type: Option<String>,
-    pub tags: Option<Vec<String>>,
+    pub tags_for_creation: Option<Vec<String>>,
+    pub tags_for_deletion: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

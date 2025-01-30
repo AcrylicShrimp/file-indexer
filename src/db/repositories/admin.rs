@@ -1,50 +1,6 @@
 use super::RepositoryError;
-use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntity {
-    pub id: Uuid,
-    pub username: String,
-    pub email: String,
-    pub joined_at: NaiveDateTime,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntityForLogin {
-    pub id: Uuid,
-    pub pw_hash: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntityForCreation {
-    pub username: String,
-    pub email: String,
-    pub pw_hash: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntityAfterCreation {
-    pub id: Uuid,
-    pub joined_at: NaiveDateTime,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntityForUpdate {
-    pub id: Uuid,
-    pub username: Option<String>,
-    pub email: Option<String>,
-    pub pw_hash: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdminEntityAfterUpdate {
-    pub username: String,
-    pub email: String,
-    pub joined_at: NaiveDateTime,
-}
 
 #[derive(Clone)]
 pub struct AdminRepository {
@@ -56,9 +12,12 @@ impl AdminRepository {
         Self { db_pool }
     }
 
-    pub async fn find_admin_by_id(&self, id: Uuid) -> Result<Option<AdminEntity>, RepositoryError> {
+    pub async fn find_one_by_id(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<entities::AdminEntity>, RepositoryError> {
         let admin = sqlx::query_as!(
-            AdminEntity,
+            row_types::RawAdmin,
             "
 SELECT
     id,
@@ -72,15 +31,15 @@ WHERE id = $1",
         .fetch_optional(&self.db_pool)
         .await?;
 
-        Ok(admin)
+        Ok(admin.map(|raw| raw.into()))
     }
 
-    pub async fn find_admin_by_username_for_login(
+    pub async fn find_one_by_username_for_login(
         &self,
         username: impl AsRef<str>,
-    ) -> Result<Option<AdminEntityForLogin>, RepositoryError> {
+    ) -> Result<Option<entities::AdminEntityForLogin>, RepositoryError> {
         let for_login = sqlx::query_as!(
-            AdminEntityForLogin,
+            row_types::RawAdminForLogin,
             "
 SELECT
     id,
@@ -92,15 +51,15 @@ WHERE username = $1",
         .fetch_optional(&self.db_pool)
         .await?;
 
-        Ok(for_login)
+        Ok(for_login.map(|raw| raw.into()))
     }
 
-    pub async fn find_admin_by_email_for_login(
+    pub async fn find_one_by_email_for_login(
         &self,
         email: impl AsRef<str>,
-    ) -> Result<Option<AdminEntityForLogin>, RepositoryError> {
+    ) -> Result<Option<entities::AdminEntityForLogin>, RepositoryError> {
         let for_login = sqlx::query_as!(
-            AdminEntityForLogin,
+            row_types::RawAdminForLogin,
             "
 SELECT
     id,
@@ -112,15 +71,15 @@ WHERE email = $1",
         .fetch_optional(&self.db_pool)
         .await?;
 
-        Ok(for_login)
+        Ok(for_login.map(|raw| raw.into()))
     }
 
-    pub async fn create_admin(
+    pub async fn create_one(
         &self,
-        admin: AdminEntityForCreation,
-    ) -> Result<AdminEntity, RepositoryError> {
+        admin: entities::AdminEntityForCreation,
+    ) -> Result<entities::AdminEntity, RepositoryError> {
         let after_creation = sqlx::query_as!(
-            AdminEntityAfterCreation,
+            row_types::RawAdminAfterCreation,
             "
 INSERT INTO admins (
     username,
@@ -144,20 +103,20 @@ RETURNING
             })
         })?;
 
-        Ok(AdminEntity {
+        Ok(entities::AdminEntity {
             id: after_creation.id,
             username: admin.username,
             email: admin.email,
-            joined_at: after_creation.joined_at,
+            joined_at: after_creation.joined_at.and_utc(),
         })
     }
 
-    pub async fn update_admin(
+    pub async fn update_one(
         &self,
-        admin: AdminEntityForUpdate,
-    ) -> Result<AdminEntity, RepositoryError> {
+        admin: entities::AdminEntityForUpdate,
+    ) -> Result<entities::AdminEntity, RepositoryError> {
         let after_update = sqlx::query_as!(
-            AdminEntityAfterUpdate,
+            row_types::RawAdminAfterUpdate,
             "
 UPDATE admins SET
     username = COALESCE($1, username),
@@ -183,11 +142,126 @@ RETURNING
             })
         })?;
 
-        Ok(AdminEntity {
+        Ok(entities::AdminEntity {
             id: admin.id,
             username: after_update.username,
             email: after_update.email,
-            joined_at: after_update.joined_at,
+            joined_at: after_update.joined_at.and_utc(),
         })
+    }
+}
+
+mod row_types {
+    use chrono::NaiveDateTime;
+    use uuid::Uuid;
+
+    pub struct RawAdmin {
+        pub id: Uuid,
+        pub username: String,
+        pub email: String,
+        pub joined_at: NaiveDateTime,
+    }
+
+    pub struct RawAdminForLogin {
+        pub id: Uuid,
+        pub pw_hash: String,
+    }
+
+    pub struct RawAdminAfterCreation {
+        pub id: Uuid,
+        pub joined_at: NaiveDateTime,
+    }
+
+    pub struct RawAdminAfterUpdate {
+        pub username: String,
+        pub email: String,
+        pub joined_at: NaiveDateTime,
+    }
+}
+
+pub mod entities {
+    use chrono::{DateTime, Utc};
+    use serde::{Deserialize, Serialize};
+    use uuid::Uuid;
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntity {
+        pub id: Uuid,
+        pub username: String,
+        pub email: String,
+        pub joined_at: DateTime<Utc>,
+    }
+
+    impl From<super::row_types::RawAdmin> for AdminEntity {
+        fn from(raw: super::row_types::RawAdmin) -> Self {
+            Self {
+                id: raw.id,
+                username: raw.username,
+                email: raw.email,
+                joined_at: raw.joined_at.and_utc(),
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntityForLogin {
+        pub id: Uuid,
+        pub pw_hash: String,
+    }
+
+    impl From<super::row_types::RawAdminForLogin> for AdminEntityForLogin {
+        fn from(raw: super::row_types::RawAdminForLogin) -> Self {
+            Self {
+                id: raw.id,
+                pw_hash: raw.pw_hash,
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntityForCreation {
+        pub username: String,
+        pub email: String,
+        pub pw_hash: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntityAfterCreation {
+        pub id: Uuid,
+        pub joined_at: DateTime<Utc>,
+    }
+
+    impl From<super::row_types::RawAdminAfterCreation> for AdminEntityAfterCreation {
+        fn from(raw: super::row_types::RawAdminAfterCreation) -> Self {
+            Self {
+                id: raw.id,
+                joined_at: raw.joined_at.and_utc(),
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntityForUpdate {
+        pub id: Uuid,
+        pub username: Option<String>,
+        pub email: Option<String>,
+        pub pw_hash: Option<String>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct AdminEntityAfterUpdate {
+        pub username: String,
+        pub email: String,
+        pub joined_at: DateTime<Utc>,
+    }
+
+    impl From<super::row_types::RawAdminAfterUpdate> for AdminEntityAfterUpdate {
+        fn from(raw: super::row_types::RawAdminAfterUpdate) -> Self {
+            Self {
+                username: raw.username,
+                email: raw.email,
+                joined_at: raw.joined_at.and_utc(),
+            }
+        }
     }
 }

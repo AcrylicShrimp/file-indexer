@@ -6,7 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 pub const RE_INDEX_TASK_NAME: &str = "re-index";
-pub const CREATE_FILE_TASK_NAME: &str = "create-file";
+pub const UPLOAD_FILE_TASK_NAME: &str = "upload-file";
 pub const UPDATE_FILE_TASK_NAME: &str = "update-file";
 
 #[derive(Error, Debug)]

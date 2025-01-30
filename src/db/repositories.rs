@@ -1,10 +1,7 @@
 use thiserror::Error;
 
-mod admin;
-mod file;
-
-pub use admin::*;
-pub use file::*;
+pub mod admin;
+pub mod file;
 
 #[derive(Error, Debug)]
 pub enum RepositoryError {
