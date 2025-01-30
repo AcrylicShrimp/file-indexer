@@ -1,4 +1,5 @@
 use super::RepositoryError;
+use chrono::{DateTime, Utc};
 use futures::future::try_join;
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -324,6 +325,24 @@ ORDER BY tag",
             uploaded_at: file.uploaded_at.and_utc(),
             tags: tags.into_iter().map(|raw| raw.tag).collect(),
         }))
+    }
+
+    pub async fn delete_unready_many(
+        &self,
+        before_uploaded_at: DateTime<Utc>,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query!(
+            "
+DELETE FROM files
+WHERE
+    uploaded_at < $1
+    AND is_ready = FALSE",
+            before_uploaded_at.naive_utc()
+        )
+        .fetch_one(&self.db_pool)
+        .await?;
+
+        Ok(())
     }
 }
 

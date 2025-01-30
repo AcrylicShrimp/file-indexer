@@ -7,11 +7,11 @@ mod interfaces;
 mod routes;
 mod services;
 
-use db::repositories::file::FileRepository;
+use db::repositories::{admin::AdminRepository, file::FileRepository};
 use fairings::{cors::Cors, file_gc::FileGc, re_indexer::ReIndexer};
 use services::{
-    admin_task_service::AdminTaskService, file_service::FileService, index_service::IndexService,
-    s3_service::S3Service,
+    admin_service::AdminService, admin_task_service::AdminTaskService, file_service::FileService,
+    index_service::IndexService, s3_service::S3Service, token_service::TokenService,
 };
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -28,11 +28,13 @@ async fn rocket() -> _ {
         .await
         .expect("failed to initialize s3 service");
 
+    let admin_service = AdminService::new(AdminRepository::new(database.pool()));
     let admin_task_service = AdminTaskService::new(database.pool());
     let file_service = FileService::new(FileRepository::new(database.pool()));
     let index_service = IndexService::new(search_engine.into_client());
+    let token_service = TokenService::new();
 
-    let file_gc = FileGc::new(s3_service.clone());
+    let file_gc = FileGc::new(admin_task_service.clone(), file_service.clone());
     let re_indexer = ReIndexer::new(
         admin_task_service.clone(),
         file_service.clone(),
@@ -48,10 +50,12 @@ async fn rocket() -> _ {
         .attach(Cors)
         .attach(file_gc)
         .attach(re_indexer)
+        .manage(admin_service)
         .manage(admin_task_service)
         .manage(file_service)
         .manage(index_service)
-        .manage(s3_service);
+        .manage(s3_service)
+        .manage(token_service);
     let rocket = routes::register_root(rocket);
 
     #[allow(clippy::let_and_return)]

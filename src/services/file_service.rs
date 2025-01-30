@@ -1,8 +1,5 @@
 use crate::{
-    db::repositories::{
-        file::{self, FileRepository},
-        RepositoryError,
-    },
+    db::repositories::file::{self, FileRepository},
     interfaces::dto,
 };
 use chrono::DateTime;
@@ -14,7 +11,7 @@ use uuid::Uuid;
 #[derive(Error, Debug)]
 pub enum FileServiceError {
     #[error("repository error: {0:#?}")]
-    RepositoryError(#[from] RepositoryError),
+    RepositoryError(#[from] crate::db::repositories::RepositoryError),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -146,5 +143,16 @@ impl FileService {
             uploaded_at: file.uploaded_at,
             tags: file.tags,
         }))
+    }
+
+    pub async fn delete_unready_files(
+        &self,
+        before_uploaded_at: DateTime<Utc>,
+    ) -> Result<(), FileServiceError> {
+        self.file_repository
+            .delete_unready_many(before_uploaded_at)
+            .await?;
+
+        Ok(())
     }
 }

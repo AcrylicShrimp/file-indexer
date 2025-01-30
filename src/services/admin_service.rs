@@ -1,22 +1,25 @@
-use crate::{interfaces::dto, services::token_service::TokenService};
-use sqlx::PgPool;
+use crate::{
+    db::repositories::admin::{self, AdminRepository},
+    interfaces::dto,
+    services::token_service::TokenService,
+};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AdminServiceError {
-    #[error("database error: {0:#?}")]
-    DbError(#[from] sqlx::Error),
+    #[error("repository error: {0:#?}")]
+    RepositoryError(#[from] crate::db::repositories::RepositoryError),
     #[error("password error: {0:#?}")]
     PwError(#[from] argon2::password_hash::Error),
 }
 
 pub struct AdminService {
-    db_pool: PgPool,
+    admin_repository: AdminRepository,
 }
 
 impl AdminService {
-    pub fn new(db_pool: PgPool) -> Self {
-        Self { db_pool }
+    pub fn new(admin_repository: AdminRepository) -> Self {
+        Self { admin_repository }
     }
 
     pub async fn create_admin(
@@ -26,27 +29,21 @@ impl AdminService {
         const TOKEN_SERVICE: TokenService = TokenService::new();
 
         let pw_hash = TOKEN_SERVICE.hash_password(&admin.password)?;
-        let admin = sqlx::query_as!(
-            row_types::Admin,
-            "
-INSERT INTO admins (
-    username,
-    email,
-    pw_hash
-) VALUES ($1, $2, $3)
-RETURNING
-    id,
-    username,
-    email,
-    joined_at",
-            admin.username,
-            admin.email,
-            pw_hash,
-        )
-        .fetch_one(&self.db_pool)
-        .await?;
+        let admin = self
+            .admin_repository
+            .create_one(admin::entities::AdminEntityForCreation {
+                username: admin.username,
+                email: admin.email,
+                pw_hash,
+            })
+            .await?;
 
-        Ok(admin.into())
+        Ok(dto::Admin {
+            id: admin.id,
+            username: admin.username,
+            email: admin.email,
+            joined_at: admin.joined_at,
+        })
     }
 }
 

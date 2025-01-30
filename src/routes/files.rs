@@ -4,7 +4,7 @@ use crate::{
         FileUploadUrl, SimpleOk, UpdatingFile, UploadedParts,
     },
     services::{
-        admin_task_service::{AdminTaskService, UPLOAD_FILE_TASK_NAME},
+        admin_task_service::{AdminTaskService, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME},
         file_service::{FileCursor, FileService},
         index_service::IndexService,
         s3_service::S3Service,
@@ -313,7 +313,7 @@ async fn files_update(
     let result = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
-            UPLOAD_FILE_TASK_NAME.to_owned(),
+            UPDATE_FILE_TASK_NAME.to_owned(),
             serde_json::json!({ "file_id": file_id, "delta": body }),
             Some(status),
             false,
