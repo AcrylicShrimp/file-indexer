@@ -112,8 +112,17 @@ pub struct CreatedFile {
 #[serde(rename_all = "camelCase")]
 pub struct FileUploadUrl {
     pub id: String,
-    pub urls: Vec<String>,
+    pub parts: Vec<FileUploadUrlPart>,
     pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FileUploadUrlPart {
+    pub part_number: u32,
+    pub url: String,
+    pub offset: u64,
+    pub size: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

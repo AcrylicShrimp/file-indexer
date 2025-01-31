@@ -10,4 +10,5 @@ CREATE TABLE files (
 );
 
 CREATE INDEX files_idx_is_ready ON files (is_ready);
-CREATE INDEX files_idx_is_ready_uploaded_at_id ON files (is_ready, uploaded_at DESC, id ASC);
+CREATE INDEX files_idx_id_is_ready ON files (id, is_ready);
+CREATE INDEX files_idx_uploaded_at_id_is_ready ON files (uploaded_at DESC, id ASC, is_ready);

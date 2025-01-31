@@ -29,7 +29,7 @@ SELECT
     mime_type,
     uploaded_at
 FROM files
-WHERE id = $1",
+WHERE id = $1 AND is_ready = TRUE",
             file_id
         )
         .fetch_optional(&self.db_pool);
@@ -86,7 +86,7 @@ SELECT
     mime_type,
     uploaded_at
 FROM files
-WHERE uploaded_at <= $1 AND $2 < id
+WHERE uploaded_at <= $1 AND $2 < id AND is_ready = TRUE
 ORDER BY uploaded_at DESC, id ASC
 LIMIT $3",
                     cursor.uploaded_at.naive_utc(),
@@ -107,6 +107,7 @@ SELECT
     mime_type,
     uploaded_at
 FROM files
+WHERE is_ready = TRUE
 ORDER BY uploaded_at DESC, id ASC
 LIMIT $1",
                     limit as i64
@@ -327,19 +328,55 @@ ORDER BY tag",
         }))
     }
 
+    pub async fn delete_one(&self, file_id: Uuid) -> Result<(), RepositoryError> {
+        sqlx::query!(
+            "
+DELETE FROM files
+WHERE id = $1",
+            file_id
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        sqlx::query!(
+            "
+DELETE FROM file_tags
+WHERE file_id = $1",
+            file_id
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn delete_unready_many(
         &self,
         before_uploaded_at: DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
-        sqlx::query!(
+        let file_ids = sqlx::query_as!(
+            row_types::RawFileId,
             "
 DELETE FROM files
 WHERE
     uploaded_at < $1
-    AND is_ready = FALSE",
+    AND is_ready = FALSE
+RETURNING id",
             before_uploaded_at.naive_utc()
         )
-        .fetch_one(&self.db_pool)
+        .fetch_all(&self.db_pool)
+        .await?;
+
+        sqlx::query!(
+            "
+DELETE FROM file_tags
+WHERE file_id = ANY($1::uuid[])",
+            &file_ids
+                .iter()
+                .map(|file_id| file_id.id)
+                .collect::<Vec<_>>()
+        )
+        .execute(&self.db_pool)
         .await?;
 
         Ok(())
@@ -356,6 +393,10 @@ mod row_types {
         pub size: i64,
         pub mime_type: String,
         pub uploaded_at: NaiveDateTime,
+    }
+
+    pub struct RawFileId {
+        pub id: Uuid,
     }
 
     pub struct RawFileTag {

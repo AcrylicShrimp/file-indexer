@@ -1,7 +1,7 @@
 use crate::{
     interfaces::dto::{
         AdminTaskInitiator, AdminTaskStatus, CreatedFile, CreatingFile, File, FileDownloadUrl,
-        FileUploadUrl, SimpleOk, UpdatingFile, UploadedParts,
+        FileUploadUrl, FileUploadUrlPart, SimpleOk, UpdatingFile, UploadedParts,
     },
     services::{
         admin_task_service::{AdminTaskService, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME},
@@ -26,10 +26,11 @@ pub fn routes() -> Vec<Route> {
         files_get,
         files_create_download_url,
         files_create,
-        files_create_upload_url,
+        files_create_upload_urls,
         files_complete_upload,
         files_abort_upload,
         files_update,
+        files_delete,
     ]
 }
 
@@ -121,7 +122,7 @@ async fn files_create(
 }
 
 #[post("/<file_id>/upload-urls")]
-async fn files_create_upload_url(
+async fn files_create_upload_urls(
     file_service: &State<FileService>,
     s3_service: &State<S3Service>,
     file_id: Uuid,
@@ -129,6 +130,7 @@ async fn files_create_upload_url(
     let (size, mime_type) = match file_service.get_file_for_upload(file_id).await {
         Ok(Some((size, mime_type))) => (size, mime_type),
         Ok(None) => {
+            log::info!("file `{}` not found", file_id);
             return Err(Status::NotFound);
         }
         Err(err) => {
@@ -152,6 +154,8 @@ async fn files_create_upload_url(
             return Err(Status::InternalServerError);
         }
     };
+
+    log::info!("created multipart upload for file `{}`: {}", file_id, id);
 
     /// 64 MiB
     const PART_SIZE: usize = 1024 * 1024 * 64;
@@ -187,9 +191,28 @@ async fn files_create_upload_url(
         }
     };
 
+    let mut offset = 0;
+    let mut parts = Vec::with_capacity(count as usize);
+
+    for (url, part_number) in urls.into_iter().zip(1..=count) {
+        let size = if part_number == count {
+            size - offset
+        } else {
+            PART_SIZE
+        };
+
+        parts.push(FileUploadUrlPart {
+            part_number,
+            url,
+            offset: offset as u64,
+            size: size as u64,
+        });
+        offset += size;
+    }
+
     Ok(Json(FileUploadUrl {
         id,
-        urls,
+        parts,
         expires_at: now + UPLOAD_URL_DURATION,
     }))
 }
@@ -325,6 +348,31 @@ async fn files_update(
     }
 
     Ok(Json(file))
+}
+
+#[delete("/<file_id>")]
+async fn files_delete(
+    file_service: &State<FileService>,
+    index_service: &State<IndexService>,
+    s3_service: &State<S3Service>,
+    file_id: Uuid,
+) -> Result<Json<SimpleOk>, Status> {
+    if let Err(err) = s3_service.delete_file(file_id).await {
+        log::error!("failed to delete file from s3: {err:#?}");
+        return Err(Status::InternalServerError);
+    }
+
+    if let Err(err) = index_service.delete_file(file_id).await {
+        log::error!("failed to delete file from index: {err:#?}");
+        return Err(Status::InternalServerError);
+    }
+
+    if let Err(err) = file_service.delete_file(file_id).await {
+        log::error!("failed to delete file: {err:#?}");
+        return Err(Status::InternalServerError);
+    }
+
+    Ok(Json(SimpleOk { ok: true }))
 }
 
 mod forms {

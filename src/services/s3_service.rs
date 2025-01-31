@@ -48,6 +48,11 @@ pub enum S3ServiceError {
     CreatePresignedUrlForDownload(
         aws_sdk_s3::error::SdkError<aws_sdk_s3::operation::get_object::GetObjectError>,
     ),
+
+    #[error("failed to delete file: {0:#?}")]
+    DeleteFile(
+        aws_sdk_s3::error::SdkError<aws_sdk_s3::operation::delete_object::DeleteObjectError>,
+    ),
 }
 
 #[derive(Clone)]
@@ -232,5 +237,21 @@ impl S3Service {
             .map_err(S3ServiceError::CreatePresignedUrlForDownload)?;
 
         Ok(Some(request.uri().to_owned()))
+    }
+
+    pub async fn delete_file(&self, file_id: Uuid) -> Result<(), S3ServiceError> {
+        if !self.check_file_exists(file_id).await? {
+            return Ok(());
+        }
+
+        self.client
+            .delete_object()
+            .bucket(&self.bucket_name)
+            .key(file_id)
+            .send()
+            .await
+            .map_err(S3ServiceError::DeleteFile)?;
+
+        Ok(())
     }
 }

@@ -145,6 +145,12 @@ impl FileService {
         }))
     }
 
+    pub async fn delete_file(&self, file_id: Uuid) -> Result<(), FileServiceError> {
+        self.file_repository.delete_one(file_id).await?;
+
+        Ok(())
+    }
+
     pub async fn delete_unready_files(
         &self,
         before_uploaded_at: DateTime<Utc>,

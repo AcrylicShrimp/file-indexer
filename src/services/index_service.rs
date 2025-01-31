@@ -96,6 +96,15 @@ impl IndexService {
         Ok(())
     }
 
+    pub async fn delete_file(&self, file_id: Uuid) -> Result<(), IndexServiceError> {
+        self.client
+            .index(FILES_INDEX_UID)
+            .delete_document(file_id)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn search_files(&self, q: &FileSearchQuery) -> Result<Vec<File>, IndexServiceError> {
         let index = self.client.index(FILES_INDEX_UID);
 
