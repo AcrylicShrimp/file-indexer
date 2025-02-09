@@ -329,14 +329,7 @@ ORDER BY tag",
     }
 
     pub async fn delete_one(&self, file_id: Uuid) -> Result<(), RepositoryError> {
-        sqlx::query!(
-            "
-DELETE FROM files
-WHERE id = $1",
-            file_id
-        )
-        .execute(&self.db_pool)
-        .await?;
+        let mut tx = self.db_pool.begin().await?;
 
         sqlx::query!(
             "
@@ -344,8 +337,19 @@ DELETE FROM file_tags
 WHERE file_id = $1",
             file_id
         )
-        .execute(&self.db_pool)
+        .execute(&mut *tx)
         .await?;
+
+        sqlx::query!(
+            "
+DELETE FROM files
+WHERE id = $1",
+            file_id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
 
         Ok(())
     }
@@ -354,17 +358,17 @@ WHERE file_id = $1",
         &self,
         before_uploaded_at: DateTime<Utc>,
     ) -> Result<(), RepositoryError> {
+        let mut tx = self.db_pool.begin().await?;
+
         let file_ids = sqlx::query_as!(
             row_types::RawFileId,
             "
-DELETE FROM files
-WHERE
-    uploaded_at < $1
-    AND is_ready = FALSE
-RETURNING id",
+SELECT id
+FROM files
+WHERE uploaded_at < $1 AND is_ready = FALSE",
             before_uploaded_at.naive_utc()
         )
-        .fetch_all(&self.db_pool)
+        .fetch_all(&mut *tx)
         .await?;
 
         sqlx::query!(
@@ -376,8 +380,22 @@ WHERE file_id = ANY($1::uuid[])",
                 .map(|file_id| file_id.id)
                 .collect::<Vec<_>>()
         )
-        .execute(&self.db_pool)
+        .execute(&mut *tx)
         .await?;
+
+        sqlx::query!(
+            "
+DELETE FROM files
+WHERE id = ANY($1::uuid[])",
+            &file_ids
+                .iter()
+                .map(|file_id| file_id.id)
+                .collect::<Vec<_>>()
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
 
         Ok(())
     }
