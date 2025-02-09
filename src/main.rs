@@ -7,11 +7,14 @@ mod interfaces;
 mod routes;
 mod services;
 
-use db::repositories::{admin::AdminRepository, file::FileRepository};
+use db::repositories::{
+    admin::AdminRepository, collection::CollectionRepository, file::FileRepository,
+};
 use fairings::{cors::Cors, file_gc::FileGc, re_indexer::ReIndexer};
 use services::{
-    admin_service::AdminService, admin_task_service::AdminTaskService, file_service::FileService,
-    index_service::IndexService, s3_service::S3Service, token_service::TokenService,
+    admin_service::AdminService, admin_task_service::AdminTaskService,
+    collection_service::CollectionService, file_service::FileService, index_service::IndexService,
+    s3_service::S3Service, token_service::TokenService,
 };
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -30,6 +33,7 @@ async fn rocket() -> _ {
 
     let admin_service = AdminService::new(AdminRepository::new(database.pool()));
     let admin_task_service = AdminTaskService::new(database.pool());
+    let collection_service = CollectionService::new(CollectionRepository::new(database.pool()));
     let file_service = FileService::new(FileRepository::new(database.pool()));
     let index_service = IndexService::new(search_engine.into_client());
     let token_service = TokenService::new();
@@ -52,6 +56,7 @@ async fn rocket() -> _ {
         .attach(re_indexer)
         .manage(admin_service)
         .manage(admin_task_service)
+        .manage(collection_service)
         .manage(file_service)
         .manage(index_service)
         .manage(s3_service)

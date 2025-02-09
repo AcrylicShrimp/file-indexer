@@ -2,14 +2,14 @@ use crate::{
     interfaces::{
         admins::{AdminTaskInitiator, AdminTaskStatus},
         files::{
-            CreatedFile, CreatingFile, File, FileDownloadUrl, FileUploadUrl, FileUploadUrlPart,
+            CreatingFile, File, FileCursor, FileDownloadUrl, FileUploadUrl, FileUploadUrlPart,
             UpdatingFile, UploadedParts,
         },
         SimpleOk,
     },
     services::{
         admin_task_service::{AdminTaskService, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME},
-        file_service::{FileCursor, FileService},
+        file_service::FileService,
         index_service::IndexService,
         s3_service::S3Service,
     },
@@ -106,7 +106,7 @@ async fn files_create_download_url(
 async fn files_create(
     file_service: &State<FileService>,
     body: Json<CreatingFile>,
-) -> Result<Json<CreatedFile>, Status> {
+) -> Result<Json<File>, Status> {
     let file = match file_service.create_file(body.into_inner()).await {
         Ok(file) => file,
         Err(err) => {
@@ -115,14 +115,7 @@ async fn files_create(
         }
     };
 
-    Ok(Json(CreatedFile {
-        id: file.id,
-        name: file.name,
-        size: file.size,
-        mime_type: file.mime_type,
-        uploaded_at: file.uploaded_at,
-        tags: file.tags,
-    }))
+    Ok(Json(file))
 }
 
 #[post("/<file_id>/upload-urls")]

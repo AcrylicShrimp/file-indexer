@@ -3,7 +3,6 @@ use crate::{
     interfaces::files,
 };
 use chrono::DateTime;
-use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::Utc;
 use thiserror::Error;
 use uuid::Uuid;
@@ -12,12 +11,6 @@ use uuid::Uuid;
 pub enum FileServiceError {
     #[error("repository error: {0:#?}")]
     RepositoryError(#[from] crate::db::repositories::RepositoryError),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FileCursor {
-    pub id: Uuid,
-    pub uploaded_at: DateTime<Utc>,
 }
 
 #[derive(Clone)]
@@ -55,7 +48,7 @@ impl FileService {
     pub async fn list_files(
         &self,
         limit: usize,
-        cursor: Option<FileCursor>,
+        cursor: Option<files::FileCursor>,
     ) -> Result<Vec<files::File>, FileServiceError> {
         let cursor = cursor.map(|cursor| file::entities::FileCursorEntity {
             id: cursor.id,

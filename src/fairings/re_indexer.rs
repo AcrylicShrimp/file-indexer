@@ -1,8 +1,9 @@
 use crate::{
     interfaces::admins::{AdminTask, AdminTaskStatus},
+    interfaces::files::FileCursor,
     services::{
         admin_task_service::{AdminTaskService, RE_INDEX_TASK_NAME},
-        file_service::{FileCursor, FileService},
+        file_service::FileService,
         index_service::IndexService,
     },
 };

@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 pub mod admin;
-pub mod collections;
+pub mod collection;
 pub mod file;
 
 #[derive(Error, Debug)]
