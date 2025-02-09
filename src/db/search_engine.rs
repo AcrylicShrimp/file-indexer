@@ -2,7 +2,10 @@ use meilisearch_sdk::{client::Client, indexes::Index};
 use thiserror::Error;
 
 pub const FILES_INDEX_UID: &str = "file-indexer-files";
+pub const COLLECTIONS_INDEX_UID: &str = "file-indexer-collections";
+
 pub const FILES_PRIMARY_KEY: Option<&str> = Some("id");
+pub const COLLECTIONS_PRIMARY_KEY: Option<&str> = Some("id");
 
 #[derive(Error, Debug)]
 pub enum SearchEngineError {
@@ -52,7 +55,19 @@ async fn setup_index(client: &Client) -> Result<(), SearchEngineError> {
         Err(meilisearch_sdk::errors::Error::Meilisearch(err))
             if err.error_code == meilisearch_sdk::errors::ErrorCode::IndexNotFound =>
         {
-            create_index(client).await?;
+            create_file_index(client).await?;
+        }
+        Err(err) => {
+            return Err(SearchEngineError::MeilisearchError(err));
+        }
+    }
+
+    match client.get_index(COLLECTIONS_INDEX_UID).await {
+        Ok(_) => {}
+        Err(meilisearch_sdk::errors::Error::Meilisearch(err))
+            if err.error_code == meilisearch_sdk::errors::ErrorCode::IndexNotFound =>
+        {
+            create_collection_index(client).await?;
         }
         Err(err) => {
             return Err(SearchEngineError::MeilisearchError(err));
@@ -62,7 +77,7 @@ async fn setup_index(client: &Client) -> Result<(), SearchEngineError> {
     Ok(())
 }
 
-async fn create_index(client: &Client) -> Result<Index, SearchEngineError> {
+async fn create_file_index(client: &Client) -> Result<Index, SearchEngineError> {
     let task = client.create_index(FILES_INDEX_UID, None).await?;
     let task = task.wait_for_completion(client, None, None).await?;
     let index = task
@@ -72,6 +87,21 @@ async fn create_index(client: &Client) -> Result<Index, SearchEngineError> {
     index.set_searchable_attributes(&["name", "tags"]).await?;
     index
         .set_filterable_attributes(&["size", "mime_type", "tags", "uploaded_at"])
+        .await?;
+
+    Ok(index)
+}
+
+async fn create_collection_index(client: &Client) -> Result<Index, SearchEngineError> {
+    let task = client.create_index(COLLECTIONS_INDEX_UID, None).await?;
+    let task = task.wait_for_completion(client, None, None).await?;
+    let index = task
+        .try_make_index(client)
+        .map_err(|task| SearchEngineError::FailedToCreateIndex(task.unwrap_failure()))?;
+
+    index.set_searchable_attributes(&["name", "tags"]).await?;
+    index
+        .set_filterable_attributes(&["size", "tags", "created_at"])
         .await?;
 
     Ok(index)

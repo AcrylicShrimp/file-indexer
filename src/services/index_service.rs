@@ -1,6 +1,11 @@
 use crate::{
-    db::search_engine::{FILES_INDEX_UID, FILES_PRIMARY_KEY},
-    interfaces::files::{File, FileSearchQuery, FileSearchQueryFilter},
+    db::search_engine::{
+        COLLECTIONS_INDEX_UID, COLLECTIONS_PRIMARY_KEY, FILES_INDEX_UID, FILES_PRIMARY_KEY,
+    },
+    interfaces::{
+        collections::{Collection, CollectionSearchQuery},
+        files::{File, FileSearchQuery},
+    },
 };
 use chrono::{DateTime, Utc};
 use meilisearch_sdk::{
@@ -32,6 +37,10 @@ impl IndexService {
             .index(FILES_INDEX_UID)
             .delete_all_documents()
             .await?;
+        // self.client
+        //     .index(COLLECTIONS_INDEX_UID)
+        //     .delete_all_documents()
+        //     .await?;
 
         Ok(())
     }
@@ -59,6 +68,31 @@ impl IndexService {
                     uploaded_at: file.uploaded_at.timestamp(),
                 }],
                 FILES_PRIMARY_KEY,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn index_collection(&self, collection: &Collection) -> Result<(), IndexServiceError> {
+        #[derive(Serialize)]
+        struct IndexingCollection<'a> {
+            id: Uuid,
+            name: &'a str,
+            tags: &'a [String],
+            created_at: i64,
+        }
+
+        self.client
+            .index(COLLECTIONS_INDEX_UID)
+            .add_or_update(
+                &[IndexingCollection {
+                    id: collection.id,
+                    name: &collection.name,
+                    tags: &collection.tags,
+                    created_at: collection.created_at.timestamp(),
+                }],
+                COLLECTIONS_PRIMARY_KEY,
             )
             .await?;
 
@@ -96,10 +130,45 @@ impl IndexService {
         Ok(())
     }
 
+    pub async fn index_collections(
+        &self,
+        collections: &[Collection],
+    ) -> Result<(), IndexServiceError> {
+        #[derive(Serialize)]
+        struct IndexingCollection<'a> {
+            id: Uuid,
+            name: &'a str,
+        }
+
+        let indexing_collections = collections
+            .iter()
+            .map(|collection| IndexingCollection {
+                id: collection.id,
+                name: &collection.name,
+            })
+            .collect::<Vec<_>>();
+
+        self.client
+            .index(COLLECTIONS_INDEX_UID)
+            .add_or_update(&indexing_collections, COLLECTIONS_PRIMARY_KEY)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn delete_file(&self, file_id: Uuid) -> Result<(), IndexServiceError> {
         self.client
             .index(FILES_INDEX_UID)
             .delete_document(file_id)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_collection(&self, collection_id: Uuid) -> Result<(), IndexServiceError> {
+        self.client
+            .index(COLLECTIONS_INDEX_UID)
+            .delete_document(collection_id)
             .await?;
 
         Ok(())
@@ -116,7 +185,11 @@ impl IndexService {
         let filter = if q.filters.is_empty() {
             vec![]
         } else {
-            Vec::from_iter(q.filters.iter().filter_map(|filters| build_filter(filters)))
+            Vec::from_iter(
+                q.filters
+                    .iter()
+                    .filter_map(|filters| filters::build_file_filter(filters)),
+            )
         };
         let filter = Vec::from_iter(filter.iter().map(|filter| filter.as_str()));
 
@@ -147,35 +220,72 @@ impl IndexService {
             })
             .collect())
     }
+
+    pub async fn search_collections(
+        &self,
+        q: &CollectionSearchQuery,
+    ) -> Result<Vec<Collection>, IndexServiceError> {
+        let index = self.client.index(COLLECTIONS_INDEX_UID);
+
+        let mut query = index.search();
+        query.with_query(&q.q);
+        query.with_limit(q.limit);
+
+        #[derive(Deserialize)]
+        struct SearchedCollection {
+            id: Uuid,
+            name: String,
+            created_at: i64,
+            tags: Vec<String>,
+        }
+
+        let result: SearchResults<SearchedCollection> = query.build().execute().await?;
+
+        Ok(result
+            .hits
+            .into_iter()
+            .map(|hit| Collection {
+                id: hit.result.id,
+                name: hit.result.name,
+                created_at: DateTime::<Utc>::from_timestamp(hit.result.created_at, 0)
+                    .unwrap_or_default(),
+                tags: hit.result.tags,
+            })
+            .collect())
+    }
 }
 
-fn build_filter(filters: &[FileSearchQueryFilter]) -> Option<String> {
-    if filters.is_empty() {
-        return None;
+mod filters {
+    use crate::interfaces::files::FileSearchQueryFilter;
+
+    pub fn build_file_filter(filters: &[FileSearchQueryFilter]) -> Option<String> {
+        if filters.is_empty() {
+            return None;
+        }
+
+        Some(Vec::from_iter(filters.iter().map(build_file_filter_element)).join(" OR "))
     }
 
-    Some(Vec::from_iter(filters.iter().map(build_filter_element)).join(" OR "))
-}
-
-fn build_filter_element(filter: &FileSearchQueryFilter) -> String {
-    match filter {
-        FileSearchQueryFilter::Size { operator, value } => {
-            format!("size {} {}", operator.to_str(), value)
-        }
-        FileSearchQueryFilter::MimeType { value } => {
-            format!("mime_type = '{}'", escape_str(value))
-        }
-        FileSearchQueryFilter::Tag { value } => {
-            format!("tags = '{}'", escape_str(value))
-        }
-        FileSearchQueryFilter::TagIsEmpty => "tags IS EMPTY".to_owned(),
-        FileSearchQueryFilter::TagIsNotEmpty => "tags IS NOT EMPTY".to_owned(),
-        FileSearchQueryFilter::UploadedAt { operator, value } => {
-            format!("uploaded_at {} {}", operator.to_str(), value.timestamp())
+    fn build_file_filter_element(filter: &FileSearchQueryFilter) -> String {
+        match filter {
+            FileSearchQueryFilter::Size { operator, value } => {
+                format!("size {} {}", operator.to_str(), value)
+            }
+            FileSearchQueryFilter::MimeType { value } => {
+                format!("mime_type = '{}'", escape_str(value))
+            }
+            FileSearchQueryFilter::Tag { value } => {
+                format!("tags = '{}'", escape_str(value))
+            }
+            FileSearchQueryFilter::TagIsEmpty => "tags IS EMPTY".to_owned(),
+            FileSearchQueryFilter::TagIsNotEmpty => "tags IS NOT EMPTY".to_owned(),
+            FileSearchQueryFilter::UploadedAt { operator, value } => {
+                format!("uploaded_at {} {}", operator.to_str(), value.timestamp())
+            }
         }
     }
-}
 
-fn escape_str(s: &str) -> String {
-    s.replace('\'', "\\'")
+    fn escape_str(s: &str) -> String {
+        s.replace('\'', "\\'")
+    }
 }

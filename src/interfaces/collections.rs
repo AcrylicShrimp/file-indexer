@@ -39,3 +39,15 @@ pub struct UpdatingCollection {
     pub tags_for_creation: Option<Vec<String>>,
     pub tags_for_deletion: Option<Vec<String>>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionSearchQuery {
+    pub q: String,
+    #[serde(default = "collection_search_query_default_limit")]
+    pub limit: usize,
+}
+
+fn collection_search_query_default_limit() -> usize {
+    25
+}

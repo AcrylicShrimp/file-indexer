@@ -1,5 +1,6 @@
 use crate::{
     interfaces::{
+        admins::{AdminTaskInitiator, AdminTaskStatus},
         collections::{
             Collection, CollectionCursor, CollectionFileCursor, CreatingCollection,
             UpdatingCollection,
@@ -7,7 +8,14 @@ use crate::{
         files::File,
         SimpleOk,
     },
-    services::collection_service::CollectionService,
+    services::{
+        admin_task_service::{
+            AdminTaskService, CREATE_COLLECTION_TASK_NAME, DELETE_COLLECTION_TASK_NAME,
+            UPDATE_COLLECTION_TASK_NAME,
+        },
+        collection_service::CollectionService,
+        index_service::IndexService,
+    },
 };
 use rocket::{delete, get, http::Status, patch, post, routes, serde::json::Json, Route, State};
 use uuid::Uuid;
@@ -99,13 +107,13 @@ async fn collections_list_files(
 
 #[post("/", data = "<body>")]
 async fn collections_create(
+    admin_task_service: &State<AdminTaskService>,
     collection_service: &State<CollectionService>,
+    index_service: &State<IndexService>,
     body: Json<CreatingCollection>,
 ) -> Result<Json<Collection>, Status> {
-    let collection = match collection_service
-        .create_collection(body.into_inner())
-        .await
-    {
+    let body = body.into_inner();
+    let collection = match collection_service.create_collection(body.clone()).await {
         Ok(collection) => collection,
         Err(err) => {
             log::error!("failed to create collection: {err:#?}");
@@ -113,17 +121,42 @@ async fn collections_create(
         }
     };
 
+    let status = match index_service.index_collection(&collection).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::warn!("failed to index collection `{}`: {err:#?}", collection.id);
+            AdminTaskStatus::Failed
+        }
+    };
+
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            CREATE_COLLECTION_TASK_NAME.to_owned(),
+            serde_json::json!({ "collection_id": collection.id, "content": body }),
+            Some(status),
+            false,
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
+    }
+
     Ok(Json(collection))
 }
 
 #[patch("/<collection_id>", data = "<body>")]
 async fn collections_update(
+    admin_task_service: &State<AdminTaskService>,
     collection_service: &State<CollectionService>,
+    index_service: &State<IndexService>,
     collection_id: Uuid,
     body: Json<UpdatingCollection>,
 ) -> Result<Json<Collection>, Status> {
+    let body = body.into_inner();
     let collection = match collection_service
-        .update_collection(collection_id, body.into_inner())
+        .update_collection(collection_id, body.clone())
         .await
     {
         Ok(Some(collection)) => collection,
@@ -136,17 +169,63 @@ async fn collections_update(
         }
     };
 
+    let status = match index_service.index_collection(&collection).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::warn!("failed to index collection `{}`: {err:#?}", collection.id);
+            AdminTaskStatus::Failed
+        }
+    };
+
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            UPDATE_COLLECTION_TASK_NAME.to_owned(),
+            serde_json::json!({ "collection_id": collection_id, "delta": body }),
+            Some(status),
+            false,
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
+    }
+
     Ok(Json(collection))
 }
 
 #[delete("/<collection_id>")]
 async fn collections_delete(
+    admin_task_service: &State<AdminTaskService>,
     collection_service: &State<CollectionService>,
+    index_service: &State<IndexService>,
     collection_id: Uuid,
 ) -> Result<Json<SimpleOk>, Status> {
     if let Err(err) = collection_service.delete_collection(collection_id).await {
-        log::error!("failed to delete collection: {err:#?}");
+        log::error!("failed to delete collection from index: {err:#?}");
         return Err(Status::InternalServerError);
+    }
+
+    let status = match index_service.delete_collection(collection_id).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::error!("failed to delete collection: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            DELETE_COLLECTION_TASK_NAME.to_owned(),
+            serde_json::json!({ "collection_id": collection_id }),
+            Some(status),
+            false,
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
     }
 
     Ok(Json(SimpleOk { ok: true }))
