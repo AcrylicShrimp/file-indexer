@@ -224,7 +224,7 @@ async fn files_complete_upload(
     index_service: &State<IndexService>,
     s3_service: &State<S3Service>,
     file_id: Uuid,
-    upload_id: String,
+    upload_id: &str,
     body: Json<UploadedParts>,
 ) -> Result<Option<Json<File>>, Status> {
     let body = body.into_inner();
@@ -246,7 +246,7 @@ async fn files_complete_upload(
         .collect::<Vec<_>>();
 
     match s3_service
-        .complete_multipart_upload(file_id, upload_id, &parts)
+        .complete_multipart_upload(file_id, upload_id.to_owned(), &parts)
         .await
     {
         Ok(Some(())) => {}
@@ -288,9 +288,11 @@ async fn files_complete_upload(
 async fn files_abort_upload(
     s3_service: &State<S3Service>,
     file_id: Uuid,
-    upload_id: String,
+    upload_id: &str,
 ) -> Result<Json<SimpleOk>, Status> {
-    let result = s3_service.abort_multipart_upload(file_id, upload_id).await;
+    let result = s3_service
+        .abort_multipart_upload(file_id, upload_id.to_owned())
+        .await;
     let result = match result {
         Ok(Some(())) => SimpleOk { ok: true },
         Ok(None) => {
