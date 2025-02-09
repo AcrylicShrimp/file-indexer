@@ -8,7 +8,9 @@ use crate::{
         SimpleOk,
     },
     services::{
-        admin_task_service::{AdminTaskService, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME},
+        admin_task_service::{
+            AdminTaskService, DELETE_FILE_TASK_NAME, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME,
+        },
         file_service::FileService,
         index_service::IndexService,
         s3_service::S3Service,
@@ -351,6 +353,7 @@ async fn files_update(
 
 #[delete("/<file_id>")]
 async fn files_delete(
+    admin_task_service: &State<AdminTaskService>,
     file_service: &State<FileService>,
     index_service: &State<IndexService>,
     s3_service: &State<S3Service>,
@@ -361,9 +364,26 @@ async fn files_delete(
         return Err(Status::InternalServerError);
     }
 
-    if let Err(err) = index_service.delete_file(file_id).await {
-        log::error!("failed to delete file from index: {err:#?}");
-        return Err(Status::InternalServerError);
+    let status = match index_service.delete_file(file_id).await {
+        Ok(()) => AdminTaskStatus::Completed,
+        Err(err) => {
+            log::error!("failed to delete file from index: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    let result = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            DELETE_FILE_TASK_NAME.to_owned(),
+            serde_json::json!({ "file_id": file_id }),
+            Some(status),
+            false,
+        )
+        .await;
+
+    if let Err(err) = result {
+        log::warn!("failed to enqueue admin task: {err:#?}");
     }
 
     if let Err(err) = file_service.delete_file(file_id).await {

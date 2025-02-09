@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub const RE_INDEX_TASK_NAME: &str = "re-index";
 pub const UPLOAD_FILE_TASK_NAME: &str = "upload-file";
 pub const UPDATE_FILE_TASK_NAME: &str = "update-file";
+pub const DELETE_FILE_TASK_NAME: &str = "delete-file";
 pub const FILE_GC_TASK_NAME: &str = "file-gc";
 
 #[derive(Error, Debug)]
