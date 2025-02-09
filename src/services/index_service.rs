@@ -138,6 +138,8 @@ impl IndexService {
         struct IndexingCollection<'a> {
             id: Uuid,
             name: &'a str,
+            tags: &'a [String],
+            created_at: i64,
         }
 
         let indexing_collections = collections
@@ -145,6 +147,8 @@ impl IndexService {
             .map(|collection| IndexingCollection {
                 id: collection.id,
                 name: &collection.name,
+                tags: &collection.tags,
+                created_at: collection.created_at.timestamp(),
             })
             .collect::<Vec<_>>();
 
