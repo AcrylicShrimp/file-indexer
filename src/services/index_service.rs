@@ -37,10 +37,10 @@ impl IndexService {
             .index(FILES_INDEX_UID)
             .delete_all_documents()
             .await?;
-        // self.client
-        //     .index(COLLECTIONS_INDEX_UID)
-        //     .delete_all_documents()
-        //     .await?;
+        self.client
+            .index(COLLECTIONS_INDEX_UID)
+            .delete_all_documents()
+            .await?;
 
         Ok(())
     }

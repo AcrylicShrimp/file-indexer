@@ -41,6 +41,7 @@ async fn rocket() -> _ {
     let file_gc = FileGc::new(admin_task_service.clone(), file_service.clone());
     let re_indexer = ReIndexer::new(
         admin_task_service.clone(),
+        collection_service.clone(),
         file_service.clone(),
         index_service.clone(),
     );

@@ -5,7 +5,8 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-pub const RE_INDEX_TASK_NAME: &str = "re-index";
+pub const RE_INDEX_FILES_TASK_NAME: &str = "re-index-files";
+pub const RE_INDEX_COLLECTIONS_TASK_NAME: &str = "re-index-collections";
 
 pub const UPLOAD_FILE_TASK_NAME: &str = "upload-file";
 pub const UPDATE_FILE_TASK_NAME: &str = "update-file";

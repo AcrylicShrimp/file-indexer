@@ -1,7 +1,10 @@
 use crate::{
-    interfaces::admins::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
+    interfaces::admins::{AdminTask, AdminTaskInitiator, AdminTaskPreview, ReIndexAdminTask},
     services::{
-        admin_task_service::{AdminTaskCursor, AdminTaskService},
+        admin_task_service::{
+            AdminTaskCursor, AdminTaskService, RE_INDEX_COLLECTIONS_TASK_NAME,
+            RE_INDEX_FILES_TASK_NAME,
+        },
         index_service::IndexService,
     },
 };
@@ -59,16 +62,16 @@ async fn admin_tasks_get(
 async fn admin_tasks_re_index(
     admin_task_service: &State<AdminTaskService>,
     index_service: &State<IndexService>,
-) -> Result<Json<AdminTask>, Status> {
+) -> Result<Json<ReIndexAdminTask>, Status> {
     if let Err(err) = index_service.empty_index().await {
         log::error!("failed to empty index: {err:#?}");
         return Err(Status::InternalServerError);
     }
 
-    let admin_task = admin_task_service
+    let file_task = admin_task_service
         .enqueue_task(
             AdminTaskInitiator::User,
-            "re-index".to_owned(),
+            RE_INDEX_FILES_TASK_NAME.to_owned(),
             serde_json::json!({
                 "last_file_id": serde_json::Value::Null,
                 "last_file_uploaded_at": serde_json::Value::Null,
@@ -77,16 +80,39 @@ async fn admin_tasks_re_index(
             true,
         )
         .await;
+    let collection_task = admin_task_service
+        .enqueue_task(
+            AdminTaskInitiator::User,
+            RE_INDEX_COLLECTIONS_TASK_NAME.to_owned(),
+            serde_json::json!({
+                "last_collection_id": serde_json::Value::Null,
+                "last_collection_name": serde_json::Value::Null,
+            }),
+            None,
+            true,
+        )
+        .await;
 
-    let admin_task = match admin_task {
-        Ok(admin_task) => admin_task,
+    let file_task = match file_task {
+        Ok(file_task) => file_task,
         Err(err) => {
-            log::error!("failed to enqueue admin task: {err:#?}");
+            log::error!("failed to enqueue admin task for files: {err:#?}");
             return Err(Status::InternalServerError);
         }
     };
 
-    Ok(Json(admin_task))
+    let collection_task = match collection_task {
+        Ok(collection_task) => collection_task,
+        Err(err) => {
+            log::error!("failed to enqueue admin task for collections: {err:#?}");
+            return Err(Status::InternalServerError);
+        }
+    };
+
+    Ok(Json(ReIndexAdminTask {
+        file_task,
+        collection_task,
+    }))
 }
 
 mod forms {

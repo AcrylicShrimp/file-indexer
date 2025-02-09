@@ -32,6 +32,13 @@ pub struct AdminTaskPreview {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ReIndexAdminTask {
+    pub file_task: AdminTask,
+    pub collection_task: AdminTask,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AdminTask {
     pub id: Uuid,
     pub initiator: AdminTaskInitiator,

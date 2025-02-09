@@ -1,8 +1,14 @@
 use crate::{
-    interfaces::admins::{AdminTask, AdminTaskStatus},
-    interfaces::files::FileCursor,
+    interfaces::{
+        admins::{AdminTask, AdminTaskStatus},
+        collections::CollectionCursor,
+        files::FileCursor,
+    },
     services::{
-        admin_task_service::{AdminTaskService, RE_INDEX_TASK_NAME},
+        admin_task_service::{
+            AdminTaskService, RE_INDEX_COLLECTIONS_TASK_NAME, RE_INDEX_FILES_TASK_NAME,
+        },
+        collection_service::CollectionService,
         file_service::FileService,
         index_service::IndexService,
     },
@@ -23,6 +29,8 @@ use uuid::Uuid;
 pub enum ReIndexerError {
     #[error("admin task service failure: {0:#?}")]
     AdminTask(#[from] crate::services::admin_task_service::AdminTaskServiceError),
+    #[error("collection service failure: {0:#?}")]
+    Collection(#[from] crate::services::collection_service::CollectionServiceError),
     #[error("file service failure: {0:#?}")]
     File(#[from] crate::services::file_service::FileServiceError),
     #[error("index service failure: {0:#?}")]
@@ -33,6 +41,7 @@ pub enum ReIndexerError {
 
 pub struct ReIndexer {
     admin_task_service: AdminTaskService,
+    collection_service: CollectionService,
     file_service: FileService,
     index_service: IndexService,
     stop_signal: Mutex<Option<tokio::sync::mpsc::Sender<()>>>,
@@ -42,11 +51,13 @@ pub struct ReIndexer {
 impl ReIndexer {
     pub fn new(
         admin_task_service: AdminTaskService,
+        collection_service: CollectionService,
         file_service: FileService,
         index_service: IndexService,
     ) -> Self {
         Self {
             admin_task_service,
+            collection_service,
             file_service,
             index_service,
             stop_signal: Mutex::new(None),
@@ -59,6 +70,7 @@ impl ReIndexer {
         let task_handle = tokio::spawn(re_index_task(
             rx,
             self.admin_task_service.clone(),
+            self.collection_service.clone(),
             self.file_service.clone(),
             self.index_service.clone(),
         ));
@@ -100,6 +112,7 @@ impl Fairing for ReIndexer {
 async fn re_index_task(
     mut stop_signal: tokio::sync::mpsc::Receiver<()>,
     admin_task_service: AdminTaskService,
+    collection_service: CollectionService,
     file_service: FileService,
     index_service: IndexService,
 ) {
@@ -113,27 +126,51 @@ async fn re_index_task(
                 return;
             }
             _ = timer.tick() => {
-                let result = re_index_task_on_tick(
+                let files_result = re_index_task_on_tick_files(
                     &admin_task_service,
                     &file_service,
                     &index_service,
                 ).await;
 
-                match result {
+                let collections_result = re_index_task_on_tick_collections(
+                    &admin_task_service,
+                    &collection_service,
+                    &index_service,
+                ).await;
+
+                let file_duration_secs = match files_result {
                     Ok(ReIndexTaskResult::NoTask) => {
-                        duration_secs = 10;
+                        10
                     }
                     Ok(ReIndexTaskResult::TaskNotCompleted) => {
-                        duration_secs = 1;
+                        1
                     }
                     Ok(ReIndexTaskResult::TaskCompleted) => {
-                        duration_secs = 10;
+                        10
                     }
                     Err(err) => {
-                        duration_secs = 10;
-                        log::error!("re-index task on tick error: {err:#?}");
+                        log::error!("re-index task on tick for files error: {err:#?}");
+                        10
                     }
-                }
+                };
+
+                let collections_duration_secs = match collections_result {
+                    Ok(ReIndexTaskResult::NoTask) => {
+                        10
+                    }
+                    Ok(ReIndexTaskResult::TaskNotCompleted) => {
+                        1
+                    }
+                    Ok(ReIndexTaskResult::TaskCompleted) => {
+                        10
+                    }
+                    Err(err) => {
+                        log::error!("re-index task on tick for collections error: {err:#?}");
+                        10
+                    }
+                };
+
+                duration_secs = std::cmp::min(file_duration_secs, collections_duration_secs);
             }
         }
     }
@@ -146,34 +183,34 @@ enum ReIndexTaskResult {
     TaskCompleted,
 }
 
-async fn re_index_task_on_tick(
+async fn re_index_task_on_tick_files(
     admin_task_service: &AdminTaskService,
     file_service: &FileService,
     index_service: &IndexService,
 ) -> Result<ReIndexTaskResult, ReIndexerError> {
-    let admin_task = admin_task_service
-        .get_last_active_task(RE_INDEX_TASK_NAME)
+    let task = admin_task_service
+        .get_last_active_task(RE_INDEX_FILES_TASK_NAME)
         .await?;
-    let admin_task = match admin_task {
+    let task = match task {
         Some(admin_task) => admin_task,
         None => {
             return Ok(ReIndexTaskResult::NoTask);
         }
     };
-    let admin_task_id = admin_task.id;
+    let task_id = task.id;
 
     admin_task_service
-        .update_task_status(admin_task_id, AdminTaskStatus::InProgress)
+        .update_task_status(task_id, AdminTaskStatus::InProgress)
         .await?;
 
     let result =
-        re_index_task_on_tick_for_task(admin_task, admin_task_service, file_service, index_service)
+        re_index_task_on_tick_for_task_files(task, admin_task_service, file_service, index_service)
             .await;
     let result = match result {
         Ok(result) => result,
         Err(err) => {
             admin_task_service
-                .update_task_status(admin_task_id, AdminTaskStatus::Failed)
+                .update_task_status(task_id, AdminTaskStatus::Failed)
                 .await?;
             return Err(err);
         }
@@ -181,14 +218,60 @@ async fn re_index_task_on_tick(
 
     if result == ReIndexTaskResult::TaskCompleted {
         admin_task_service
-            .update_task_status(admin_task_id, AdminTaskStatus::Completed)
+            .update_task_status(task_id, AdminTaskStatus::Completed)
             .await?;
     }
 
     Ok(result)
 }
 
-async fn re_index_task_on_tick_for_task(
+async fn re_index_task_on_tick_collections(
+    admin_task_service: &AdminTaskService,
+    collection_service: &CollectionService,
+    index_service: &IndexService,
+) -> Result<ReIndexTaskResult, ReIndexerError> {
+    let task = admin_task_service
+        .get_last_active_task(RE_INDEX_COLLECTIONS_TASK_NAME)
+        .await?;
+    let task = match task {
+        Some(admin_task) => admin_task,
+        None => {
+            return Ok(ReIndexTaskResult::NoTask);
+        }
+    };
+    let task_id = task.id;
+
+    admin_task_service
+        .update_task_status(task_id, AdminTaskStatus::InProgress)
+        .await?;
+
+    let result = re_index_task_on_tick_for_task_collections(
+        task,
+        admin_task_service,
+        collection_service,
+        index_service,
+    )
+    .await;
+    let result = match result {
+        Ok(result) => result,
+        Err(err) => {
+            admin_task_service
+                .update_task_status(task_id, AdminTaskStatus::Failed)
+                .await?;
+            return Err(err);
+        }
+    };
+
+    if result == ReIndexTaskResult::TaskCompleted {
+        admin_task_service
+            .update_task_status(task_id, AdminTaskStatus::Completed)
+            .await?;
+    }
+
+    Ok(result)
+}
+
+async fn re_index_task_on_tick_for_task_files(
     admin_task: AdminTask,
     admin_task_service: &AdminTaskService,
     file_service: &FileService,
@@ -223,6 +306,51 @@ async fn re_index_task_on_tick_for_task(
     let metadata = ReIndexTaskMetadata {
         last_file_id: Some(last_file.id),
         last_file_uploaded_at: Some(last_file.uploaded_at),
+    };
+    let metadata = serde_json::to_value(metadata)?;
+
+    admin_task_service
+        .update_task_metadata(admin_task.id, metadata)
+        .await?;
+
+    Ok(ReIndexTaskResult::TaskNotCompleted)
+}
+
+async fn re_index_task_on_tick_for_task_collections(
+    admin_task: AdminTask,
+    admin_task_service: &AdminTaskService,
+    collection_service: &CollectionService,
+    index_service: &IndexService,
+) -> Result<ReIndexTaskResult, ReIndexerError> {
+    #[derive(Serialize, Deserialize)]
+    struct ReIndexTaskMetadata {
+        last_collection_id: Option<Uuid>,
+        last_collection_name: Option<String>,
+    }
+
+    let metadata: ReIndexTaskMetadata = serde_json::from_value(admin_task.metadata)?;
+    let cursor = match (metadata.last_collection_id, metadata.last_collection_name) {
+        (Some(last_collection_id), Some(last_collection_name)) => Some(CollectionCursor {
+            id: last_collection_id,
+            name: last_collection_name,
+        }),
+        _ => None,
+    };
+
+    let collections = collection_service.list_collections(1000, cursor).await?;
+    let last_collection = match collections.last() {
+        Some(collection) => collection,
+        None => {
+            // no more files to index; task is completed
+            return Ok(ReIndexTaskResult::TaskCompleted);
+        }
+    };
+
+    index_service.index_collections(&collections).await?;
+
+    let metadata = ReIndexTaskMetadata {
+        last_collection_id: Some(last_collection.id),
+        last_collection_name: Some(last_collection.name.clone()),
     };
     let metadata = serde_json::to_value(metadata)?;
 
