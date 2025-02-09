@@ -401,7 +401,7 @@ WHERE id = ANY($1::uuid[])",
     }
 }
 
-mod row_types {
+pub mod row_types {
     use chrono::NaiveDateTime;
     use uuid::Uuid;
 

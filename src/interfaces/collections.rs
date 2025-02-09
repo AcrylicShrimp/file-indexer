@@ -20,6 +20,13 @@ pub struct CollectionCursor {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct CollectionFileCursor {
+    pub id: Uuid,
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CreatingCollection {
     pub name: String,
     pub tags: Vec<String>,

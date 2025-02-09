@@ -123,6 +123,124 @@ ORDER BY tag",
             .collect())
     }
 
+    pub async fn list_files(
+        &self,
+        collection_id: Uuid,
+        limit: usize,
+        cursor: Option<entities::CollectionFileCursorEntity>,
+    ) -> Result<Vec<super::file::entities::FileEntity>, RepositoryError> {
+        let files = match cursor {
+            Some(cursor) => {
+                sqlx::query_as!(
+                    super::file::row_types::RawFile,
+                    "
+SELECT DISTINCT ON (file.name, file.id)
+    file.id,
+    file.name,
+    file.size,
+    file.mime_type,
+    file.uploaded_at
+FROM files file
+JOIN file_tags ON file.id = file_tags.file_id
+WHERE file.id IN (
+    SELECT t.file_id
+    FROM file_tags t
+    WHERE t.tag IN (
+        SELECT c_tags.tag
+        FROM collection_tags c_tags
+        WHERE c_tags.collection_id = $1
+    )
+    GROUP BY t.file_id
+    HAVING COUNT(
+        DISTINCT t.tag
+    ) = (
+        SELECT COUNT(c_tags.tag)
+        FROM collection_tags c_tags
+        WHERE c_tags.collection_id = $1
+    )
+) AND $2 <= file.name AND $3 < file.id
+ORDER BY file.name ASC, file.id ASC
+LIMIT $4",
+                    collection_id,
+                    &cursor.name,
+                    cursor.id,
+                    limit as i64,
+                )
+                .fetch_all(&self.db_pool)
+                .await?
+            }
+            None => {
+                sqlx::query_as!(
+                    super::file::row_types::RawFile,
+                    "
+SELECT DISTINCT ON (file.name, file.id)
+    file.id,
+    file.name,
+    file.size,
+    file.mime_type,
+    file.uploaded_at
+FROM files file
+JOIN file_tags ON file.id = file_tags.file_id
+WHERE file.id IN (
+    SELECT t.file_id
+    FROM file_tags t
+    WHERE t.tag IN (
+        SELECT c_tags.tag
+        FROM collection_tags c_tags
+        WHERE c_tags.collection_id = $1
+    )
+    GROUP BY t.file_id
+    HAVING COUNT(
+        DISTINCT t.tag
+    ) = (
+        SELECT COUNT(c_tags.tag)
+        FROM collection_tags c_tags
+        WHERE c_tags.collection_id = $1
+    )
+)
+LIMIT $2",
+                    collection_id,
+                    limit as i64,
+                )
+                .fetch_all(&self.db_pool)
+                .await?
+            }
+        };
+        let file_tags = sqlx::query_as!(
+            super::file::row_types::RawFileTagWithFileId,
+            "
+SELECT file_id, tag
+FROM file_tags
+WHERE file_id = ANY($1::uuid[])
+ORDER BY tag",
+            &files.iter().map(|file| file.id).collect::<Vec<_>>()
+        )
+        .fetch_all(&self.db_pool)
+        .await?;
+
+        let mut files_map =
+            HashMap::<_, _>::from_iter(files.iter().map(|file| (file.id, Vec::with_capacity(10))));
+
+        for tag in file_tags {
+            files_map
+                .entry(tag.file_id)
+                .or_default()
+                .push(super::file::row_types::RawFileTag { tag: tag.tag });
+        }
+
+        let files = files
+            .into_iter()
+            .map(|raw| {
+                let mut tags = files_map.remove(&raw.id).unwrap_or_default();
+                tags.sort_unstable_by(|a, b| a.tag.cmp(&b.tag));
+
+                (raw, tags).into()
+            })
+            .collect();
+
+        Ok(files)
+    }
+
     pub async fn create_one(
         &self,
         collection: entities::CollectionEntityForCreation,
@@ -270,7 +388,7 @@ WHERE id = $1",
     }
 }
 
-mod row_types {
+pub mod row_types {
     use chrono::NaiveDateTime;
     use uuid::Uuid;
 
@@ -357,6 +475,12 @@ pub mod entities {
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct CollectionCursorEntity {
+        pub id: Uuid,
+        pub name: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct CollectionFileCursorEntity {
         pub id: Uuid,
         pub name: String,
     }

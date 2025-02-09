@@ -151,7 +151,7 @@ RETURNING
     }
 }
 
-mod row_types {
+pub mod row_types {
     use chrono::NaiveDateTime;
     use uuid::Uuid;
 

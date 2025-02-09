@@ -1,6 +1,6 @@
 use crate::{
     db::repositories::collection::{self, CollectionRepository},
-    interfaces::collections,
+    interfaces::{collections, files},
 };
 use thiserror::Error;
 use uuid::Uuid;
@@ -58,6 +58,34 @@ impl CollectionService {
                 name: collection.name,
                 created_at: collection.created_at,
                 tags: collection.tags,
+            })
+            .collect())
+    }
+
+    pub async fn list_collection_files(
+        &self,
+        collection_id: Uuid,
+        limit: usize,
+        cursor: Option<collections::CollectionFileCursor>,
+    ) -> Result<Vec<files::File>, CollectionServiceError> {
+        let cursor = cursor.map(|cursor| collection::entities::CollectionFileCursorEntity {
+            id: cursor.id,
+            name: cursor.name,
+        });
+        let files = self
+            .collection_repository
+            .list_files(collection_id, limit, cursor)
+            .await?;
+
+        Ok(files
+            .into_iter()
+            .map(|file| files::File {
+                id: file.id,
+                name: file.name,
+                size: file.size,
+                mime_type: file.mime_type,
+                uploaded_at: file.uploaded_at,
+                tags: file.tags,
             })
             .collect())
     }
