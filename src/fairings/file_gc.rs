@@ -1,5 +1,5 @@
 use crate::{
-    interfaces::dto::{AdminTaskInitiator, AdminTaskStatus},
+    interfaces::admins::{AdminTaskInitiator, AdminTaskStatus},
     services::{
         admin_task_service::{AdminTaskService, FILE_GC_TASK_NAME},
         file_service::FileService,

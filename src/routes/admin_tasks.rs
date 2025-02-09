@@ -1,5 +1,5 @@
 use crate::{
-    interfaces::dto::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
+    interfaces::admins::{AdminTask, AdminTaskInitiator, AdminTaskPreview},
     services::{
         admin_task_service::{AdminTaskCursor, AdminTaskService},
         index_service::IndexService,

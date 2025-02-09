@@ -1,4 +1,4 @@
-use crate::interfaces::dto;
+use crate::interfaces::admins;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::PgPool;
@@ -29,7 +29,7 @@ impl AdminTaskService {
     pub async fn get_task(
         &self,
         task_id: Uuid,
-    ) -> Result<Option<dto::AdminTask>, AdminTaskServiceError> {
+    ) -> Result<Option<admins::AdminTask>, AdminTaskServiceError> {
         let task = sqlx::query_as!(
             row_types::AdminTask,
             "
@@ -54,7 +54,7 @@ WHERE id = $1",
     pub async fn get_last_active_task(
         &self,
         name: &str,
-    ) -> Result<Option<dto::AdminTask>, AdminTaskServiceError> {
+    ) -> Result<Option<admins::AdminTask>, AdminTaskServiceError> {
         let task = sqlx::query_as!(
             row_types::AdminTask,
             "
@@ -88,7 +88,7 @@ LIMIT 1",
         &self,
         limit: usize,
         cursor: Option<AdminTaskCursor>,
-    ) -> Result<Vec<dto::AdminTaskPreview>, AdminTaskServiceError> {
+    ) -> Result<Vec<admins::AdminTaskPreview>, AdminTaskServiceError> {
         let admin_tasks = match cursor {
             Some(cursor) => {
                 sqlx::query_as!(
@@ -130,12 +130,12 @@ LIMIT $1",
 
     pub async fn enqueue_task(
         &self,
-        initiator: dto::AdminTaskInitiator,
+        initiator: admins::AdminTaskInitiator,
         name: String,
         metadata: Value,
-        status: Option<dto::AdminTaskStatus>,
+        status: Option<admins::AdminTaskStatus>,
         mark_previous_tasks_as_canceled: bool,
-    ) -> Result<dto::AdminTask, AdminTaskServiceError> {
+    ) -> Result<admins::AdminTask, AdminTaskServiceError> {
         let mut tx = self.db_pool.begin().await?;
 
         if mark_previous_tasks_as_canceled {
@@ -183,7 +183,7 @@ RETURNING id, status AS \"status:_\", enqueued_at, updated_at
 
         tx.commit().await?;
 
-        Ok(dto::AdminTask {
+        Ok(admins::AdminTask {
             id: creating_admin_task.id,
             initiator,
             name: name.to_string(),
@@ -197,7 +197,7 @@ RETURNING id, status AS \"status:_\", enqueued_at, updated_at
     pub async fn update_task_status(
         &self,
         task_id: Uuid,
-        status: dto::AdminTaskStatus,
+        status: admins::AdminTaskStatus,
     ) -> Result<(), AdminTaskServiceError> {
         sqlx::query!(
             "UPDATE admin_tasks SET status = $1 WHERE id = $2",
@@ -233,20 +233,20 @@ pub struct AdminTaskCursor {
 }
 
 mod row_types {
-    use crate::interfaces::dto;
+    use crate::interfaces::admins;
     use chrono::NaiveDateTime;
     use uuid::Uuid;
 
     pub struct AdminTaskPreview {
         pub id: Uuid,
-        pub initiator: dto::AdminTaskInitiator,
+        pub initiator: admins::AdminTaskInitiator,
         pub name: String,
-        pub status: dto::AdminTaskStatus,
+        pub status: admins::AdminTaskStatus,
         pub enqueued_at: NaiveDateTime,
         pub updated_at: NaiveDateTime,
     }
 
-    impl From<AdminTaskPreview> for dto::AdminTaskPreview {
+    impl From<AdminTaskPreview> for admins::AdminTaskPreview {
         fn from(task: AdminTaskPreview) -> Self {
             Self {
                 id: task.id,
@@ -261,15 +261,15 @@ mod row_types {
 
     pub struct AdminTask {
         pub id: Uuid,
-        pub initiator: dto::AdminTaskInitiator,
+        pub initiator: admins::AdminTaskInitiator,
         pub name: String,
         pub metadata: serde_json::Value,
-        pub status: dto::AdminTaskStatus,
+        pub status: admins::AdminTaskStatus,
         pub enqueued_at: NaiveDateTime,
         pub updated_at: NaiveDateTime,
     }
 
-    impl From<AdminTask> for dto::AdminTask {
+    impl From<AdminTask> for admins::AdminTask {
         fn from(task: AdminTask) -> Self {
             Self {
                 id: task.id,
@@ -285,7 +285,7 @@ mod row_types {
 
     pub struct CreatingAdminTask {
         pub id: Uuid,
-        pub status: dto::AdminTaskStatus,
+        pub status: admins::AdminTaskStatus,
         pub enqueued_at: NaiveDateTime,
         pub updated_at: NaiveDateTime,
     }

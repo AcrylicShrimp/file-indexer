@@ -1,6 +1,6 @@
 use crate::{
     db::repositories::admin::{self, AdminRepository},
-    interfaces::dto,
+    interfaces::admins,
     services::token_service::TokenService,
 };
 use thiserror::Error;
@@ -24,8 +24,8 @@ impl AdminService {
 
     pub async fn create_admin(
         &self,
-        admin: dto::CreatingAdmin,
-    ) -> Result<dto::Admin, AdminServiceError> {
+        admin: admins::CreatingAdmin,
+    ) -> Result<admins::Admin, AdminServiceError> {
         const TOKEN_SERVICE: TokenService = TokenService::new();
 
         let pw_hash = TOKEN_SERVICE.hash_password(&admin.password)?;
@@ -38,7 +38,7 @@ impl AdminService {
             })
             .await?;
 
-        Ok(dto::Admin {
+        Ok(admins::Admin {
             id: admin.id,
             username: admin.username,
             email: admin.email,
@@ -48,7 +48,7 @@ impl AdminService {
 }
 
 mod row_types {
-    use crate::interfaces::dto;
+    use crate::interfaces::admins;
     use chrono::NaiveDateTime;
     use uuid::Uuid;
 
@@ -59,7 +59,7 @@ mod row_types {
         pub joined_at: NaiveDateTime,
     }
 
-    impl From<Admin> for dto::Admin {
+    impl From<Admin> for admins::Admin {
         fn from(admin: Admin) -> Self {
             Self {
                 id: admin.id,

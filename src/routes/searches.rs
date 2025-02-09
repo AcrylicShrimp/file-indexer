@@ -1,5 +1,5 @@
 use crate::{
-    interfaces::dto::{File, FileSearchQuery},
+    interfaces::files::{File, FileSearchQuery},
     services::index_service::IndexService,
 };
 use rocket::{http::Status, post, routes, serde::json::Json, Route, State};

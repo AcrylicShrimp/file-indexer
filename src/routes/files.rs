@@ -1,7 +1,11 @@
 use crate::{
-    interfaces::dto::{
-        AdminTaskInitiator, AdminTaskStatus, CreatedFile, CreatingFile, File, FileDownloadUrl,
-        FileUploadUrl, FileUploadUrlPart, SimpleOk, UpdatingFile, UploadedParts,
+    interfaces::{
+        admins::{AdminTaskInitiator, AdminTaskStatus},
+        files::{
+            CreatedFile, CreatingFile, File, FileDownloadUrl, FileUploadUrl, FileUploadUrlPart,
+            UpdatingFile, UploadedParts,
+        },
+        SimpleOk,
     },
     services::{
         admin_task_service::{AdminTaskService, UPDATE_FILE_TASK_NAME, UPLOAD_FILE_TASK_NAME},

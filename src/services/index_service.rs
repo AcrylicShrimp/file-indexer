@@ -1,6 +1,6 @@
 use crate::{
     db::search_engine::{FILES_INDEX_UID, FILES_PRIMARY_KEY},
-    interfaces::dto::{File, FileSearchQuery, FileSearchQueryFilter},
+    interfaces::files::{File, FileSearchQuery, FileSearchQueryFilter},
 };
 use chrono::{DateTime, Utc};
 use meilisearch_sdk::{

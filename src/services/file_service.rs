@@ -1,6 +1,6 @@
 use crate::{
     db::repositories::file::{self, FileRepository},
-    interfaces::dto,
+    interfaces::files,
 };
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -30,10 +30,10 @@ impl FileService {
         Self { file_repository }
     }
 
-    pub async fn get_file(&self, file_id: Uuid) -> Result<Option<dto::File>, FileServiceError> {
+    pub async fn get_file(&self, file_id: Uuid) -> Result<Option<files::File>, FileServiceError> {
         let file = self.file_repository.find_one_by_id(file_id).await?;
 
-        Ok(file.map(|file| dto::File {
+        Ok(file.map(|file| files::File {
             id: file.id,
             name: file.name,
             size: file.size,
@@ -56,7 +56,7 @@ impl FileService {
         &self,
         limit: usize,
         cursor: Option<FileCursor>,
-    ) -> Result<Vec<dto::File>, FileServiceError> {
+    ) -> Result<Vec<files::File>, FileServiceError> {
         let cursor = cursor.map(|cursor| file::entities::FileCursorEntity {
             id: cursor.id,
             uploaded_at: cursor.uploaded_at,
@@ -65,7 +65,7 @@ impl FileService {
 
         Ok(files
             .into_iter()
-            .map(|file| dto::File {
+            .map(|file| files::File {
                 id: file.id,
                 name: file.name,
                 size: file.size,
@@ -78,8 +78,8 @@ impl FileService {
 
     pub async fn create_file(
         &self,
-        file: dto::CreatingFile,
-    ) -> Result<dto::File, FileServiceError> {
+        file: files::CreatingFile,
+    ) -> Result<files::File, FileServiceError> {
         let file = self
             .file_repository
             .create_one(file::entities::FileEntityForCreation {
@@ -90,7 +90,7 @@ impl FileService {
             })
             .await?;
 
-        Ok(dto::File {
+        Ok(files::File {
             id: file.id,
             name: file.name,
             size: file.size,
@@ -103,8 +103,8 @@ impl FileService {
     pub async fn update_file(
         &self,
         file_id: Uuid,
-        file: dto::UpdatingFile,
-    ) -> Result<Option<dto::File>, FileServiceError> {
+        file: files::UpdatingFile,
+    ) -> Result<Option<files::File>, FileServiceError> {
         let file = self
             .file_repository
             .update_one(
@@ -119,7 +119,7 @@ impl FileService {
             )
             .await?;
 
-        Ok(file.map(|file| dto::File {
+        Ok(file.map(|file| files::File {
             id: file.id,
             name: file.name,
             size: file.size,
@@ -132,10 +132,10 @@ impl FileService {
     pub async fn mark_file_as_ready(
         &self,
         file_id: Uuid,
-    ) -> Result<Option<dto::File>, FileServiceError> {
+    ) -> Result<Option<files::File>, FileServiceError> {
         let file = self.file_repository.update_one_as_ready(file_id).await?;
 
-        Ok(file.map(|file| dto::File {
+        Ok(file.map(|file| files::File {
             id: file.id,
             name: file.name,
             size: file.size,
